@@ -21,10 +21,8 @@ const App = () => {
   const [activeTab, setActiveTab] = useState("dashboard"); // dashboard, investments, wishlist
 
   // URLs da API Java
-  const API_URL =
-    "https://controle-financeiro-ukwu.onrender.com/api/movimentacoes";
-  const API_METAS_URL =
-    "https://controle-financeiro-ukwu.onrender.com/api/metas";
+  const API_URL = "https://controle-financeiro-ukwu.onrender.com/movimentacoes";
+  const API_METAS_URL = "https://controle-financeiro-ukwu.onrender.com/metas";
 
   // Dados Globais (Compartilhados entre telas)
   const [incomes, setIncomes] = useState([]);
