@@ -47,6 +47,8 @@ const DashboardView = ({
   const [newItemValue, setNewItemValue] = useState("");
   const [newItemDate, setNewItemDate] = useState("");
   const [inputType, setInputType] = useState("Saida");
+  const [isFixed, setIsFixed] = useState(false);
+  const [fixedDay, setFixedDay] = useState("");
 
   const groupedIncomes = incomes.reduce((acc, item) => {
     const date = new Date(item.date);
@@ -121,12 +123,18 @@ const DashboardView = ({
     e.preventDefault();
     if (!newItemName || !newItemValue || !newItemDate || !inputType) return;
 
+    if (!newItemName || !newItemValue || !inputType) return;
+    if (!isFixed && !newItemDate) return;
+    if (isFixed && !fixedDay) return;
+
     const newItem = {
       titulo: newItemName,
       descricao: newItemDescription,
       valor: parseFloat(newItemValue),
       tipo: inputType,
-      data: formatDate(newItemDate),
+      data: !isFixed ? formatDate(newItemDate) : null,
+      fixa: isFixed,
+      diaFixo: isFixed ? parseInt(fixedDay) : null,
     };
 
     try {
@@ -156,6 +164,8 @@ const DashboardView = ({
     setNewItemDescription("");
     setNewItemValue("");
     setNewItemDate("");
+    setIsFixed(false);
+    setFixedDay("");
   };
 
   const handleRemove = async (id, type) => {
@@ -179,6 +189,95 @@ const DashboardView = ({
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+        <h3 className="text-slate-700 font-bold mb-6 flex items-center gap-2">
+          <DollarSign size={18} className="text-blue-500" /> Evolução Financeira
+        </h3>
+
+        <div className="flex-1 w-full">
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart
+              data={chartData}
+              margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="#f1f5f9"
+              />
+              <XAxis
+                dataKey="data"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: "#94a3b8" }}
+                dy={10}
+              />
+              <YAxis
+                hide={false}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: "#cbd5e1" }}
+              />
+              <Tooltip
+                contentStyle={{
+                  borderRadius: "8px",
+                  border: "none",
+                  boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                }}
+                formatter={(value, name) => {
+                  const formattedValue = formatCurrency(value);
+                  if (name === "entrada") return [formattedValue, "Receita"];
+                  if (name === "saida") return [formattedValue, "Despesa"];
+                  return [formattedValue, "Saldo"];
+                }}
+              />
+              <Legend
+                iconType="circle"
+                wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }}
+              />
+
+              <Line
+                type="monotone"
+                dataKey="entrada"
+                stroke="#10b981"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                name="Entradas"
+              />
+
+              <Line
+                type="monotone"
+                dataKey="saida"
+                stroke="#f43f5e"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                name="Saídas"
+              />
+
+              <Area
+                type="monotone"
+                dataKey="saldo"
+                stroke="#3b82f6"
+                strokeWidth={1}
+                strokeOpacity={0.5}
+                fillOpacity={1}
+                fill="url(#colorSaldo)"
+                animationDuration={1000}
+                dot={{ r: 2, strokeWidth: 1, fill: "#3b82f6" }}
+                name="Saldo"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -227,282 +326,210 @@ const DashboardView = ({
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="font-bold mb-4 flex gap-2 items-center">
-              <Plus size={18} /> Adicionar Rápido
-            </h3>
-            <form
-              onSubmit={handleAddItem}
-              className="flex flex-col md:flex-row gap-4"
+        <form
+          onSubmit={handleAddItem}
+          className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 gap-4 flex flex-col h-full justify-between"
+        >
+          <div className="flex flex-col md:flex-row justify-between gap-4">
+            <input
+              type="text"
+              placeholder="Título"
+              className="flex-2 p-2 border rounded-lg placeholder-slate-500"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Descrição"
+              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
+              value={newItemDescription}
+              onChange={(e) => setNewItemDescription(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 px-1">
+            <input
+              type="checkbox"
+              id="isFixed"
+              className="w-4 h-4 text-emerald-500 rounded border-slate-300"
+              checked={isFixed}
+              onChange={(e) => setIsFixed(e.target.checked)}
+            />
+            <label
+              htmlFor="isFixed"
+              className="text-sm text-slate-600 font-medium"
             >
-              <input
-                type="text"
-                placeholder="Título"
-                className="w-[100px] p-2 border rounded-lg"
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Descrição"
-                className="w-[200px] p-2 border rounded-lg"
-                value={newItemDescription}
-                onChange={(e) => setNewItemDescription(e.target.value)}
-              />
+              É uma movimentação fixa mensal?
+            </label>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-4">
+            {!isFixed ? (
               <input
                 type="date"
                 placeholder="Data"
-                className="p-2 border rounded-lg"
+                className="flex-1 p-2 border rounded-lg placeholder-slate-500"
                 value={newItemDate}
                 onChange={(e) => setNewItemDate(e.target.value)}
               />
+            ) : (
               <input
                 type="number"
-                placeholder="Valor"
-                className="w-[80px] p-2 border rounded-lg"
-                value={newItemValue}
-                onChange={(e) => setNewItemValue(e.target.value)}
+                placeholder="Dia Fixo (1-31)"
+                min="1"
+                max="31"
+                className="flex-1 p-2 border rounded-lg placeholder-slate-500"
+                value={fixedDay}
+                onChange={(e) => setFixedDay(e.target.value)}
               />
-              <select
-                className="w-[100px] p-2 border rounded-lg"
-                value={inputType}
-                onChange={(e) => setInputType(e.target.value)}
-              >
-                <option value="Saida">Saída</option>
-                <option value="Entrada">Entrada</option>
-              </select>
-              <button
-                type="submit"
-                className="w-[80px] bg-slate-900 text-white rounded-lg hover:bg-slate-800"
-              >
-                Salvar
-              </button>
-            </form>
+            )}
+
+            <input
+              type="number"
+              placeholder="Valor"
+              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
+              value={newItemValue}
+              onChange={(e) => setNewItemValue(e.target.value)}
+            />
+            <select
+              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
+              value={inputType}
+              onChange={(e) => setInputType(e.target.value)}
+            >
+              <option value="Saida">Saída</option>
+              <option value="Entrada">Entrada</option>
+            </select>
+            <button
+              type="submit"
+              className="flex-1 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 font-medium transition-colors"
+            >
+              Salvar
+            </button>
           </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm min-h-[350px] flex flex-col">
-          <h3 className="text-slate-700 font-bold mb-6 flex items-center gap-2">
-            <DollarSign size={18} className="text-blue-500" /> Evolução
-            Financeira
-          </h3>
-
-          <div className="flex-1 w-full" style={{ minHeight: "250px" }}>
-            <ResponsiveContainer width="100%" height={285}>
-              <AreaChart
-                data={chartData}
-                margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#f1f5f9"
-                />
-                <XAxis
-                  dataKey="data"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: "#94a3b8" }}
-                  dy={10}
-                />
-                <YAxis
-                  hide={false}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: "#cbd5e1" }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "none",
-                    boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  }}
-                  formatter={(value, name) => {
-                    const formattedValue = formatCurrency(value);
-                    if (name === "entrada") return [formattedValue, "Receita"];
-                    if (name === "saida") return [formattedValue, "Despesa"];
-                    return [formattedValue, "Saldo"];
-                  }}
-                />
-                <Legend
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }}
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="entrada"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  name="entrada"
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="saida"
-                  stroke="#f43f5e"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  name="saida"
-                />
-
-                <Area
-                  type="monotone"
-                  dataKey="saldo"
-                  stroke="#3b82f6"
-                  strokeWidth={1}
-                  strokeOpacity={0.5}
-                  fillOpacity={1}
-                  fill="url(#colorSaldo)"
-                  animationDuration={1000}
-                  dot={{ r: 2, strokeWidth: 1, fill: "#3b82f6" }}
-                  name="saldo"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        </form>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Card de Entradas */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col">
           <h3 className="font-bold text-emerald-700 mb-3 shrink-0">Entradas</h3>
+          {Object.entries(groupedIncomes).map(([month, days]) => (
+            <details
+              key={month}
+              className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
+              close="true"
+            >
+              <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                <span className="capitalize">{month}</span>
+                <span className="text-slate-400 group-open:rotate-180 transition-transform">
+                  ▼
+                </span>
+              </summary>
 
-          {/* Container com Scroll para Entradas */}
-          <div className="overflow-y-auto max-h-[300px] pr-2">
-            {Object.entries(groupedIncomes).map(([month, days]) => (
-              <details
-                key={month}
-                className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
-                close="true"
-              >
-                <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-                  <span className="capitalize">{month}</span>
-                  <span className="text-slate-400 group-open:rotate-180 transition-transform">
-                    ▼
-                  </span>
-                </summary>
+              <div className="p-4 pt-0 border-t border-slate-100">
+                {Object.entries(days).map(([day, transactions]) => (
+                  <div key={day} className="mt-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      {day}
+                    </h4>
 
-                <div className="p-4 pt-0 border-t border-slate-100">
-                  {Object.entries(days).map(([day, transactions]) => (
-                    <div key={day} className="mt-4">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                        {day}
-                      </h4>
-
-                      <div className="space-y-1">
-                        {transactions.map((i) => (
-                          <div
-                            key={i.id}
-                            className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
-                          >
-                            <div>
-                              <span className="block text-sm font-medium text-slate-700">
-                                {i.name}
-                              </span>
-                              <p className="text-xs font-light text-slate-500">
-                                {i.description}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className="font-semibold text-emerald-600 text-sm">
-                                {formatCurrency(i.value)}
-                              </span>
-                              <button
-                                onClick={() => handleRemove(i.id, "Entrada")}
-                                className="p-1 hover:bg-red-50 rounded-full transition-colors"
-                              >
-                                <Trash2
-                                  size={14}
-                                  className="text-slate-300 hover:text-red-500"
-                                />
-                              </button>
-                            </div>
+                    <div className="space-y-1">
+                      {transactions.map((i) => (
+                        <div
+                          key={i.id}
+                          className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
+                        >
+                          <div>
+                            <span className="block text-sm font-medium text-slate-700">
+                              {i.name}
+                            </span>
+                            <p className="text-xs font-light text-slate-500">
+                              {i.description}
+                            </p>
                           </div>
-                        ))}
-                      </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-emerald-600 text-sm">
+                              {formatCurrency(i.value)}
+                            </span>
+                            <button
+                              onClick={() => handleRemove(i.id, "Entrada")}
+                              className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                            >
+                              <Trash2
+                                size={14}
+                                className="text-slate-300 hover:text-red-500"
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </details>
-            ))}
-          </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
         </div>
 
-        {/* Card de Saídas */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col">
           <h3 className="font-bold text-rose-700 mb-3 shrink-0">Saídas</h3>
+          {Object.entries(groupedExpenses).map(([month, days]) => (
+            <details
+              key={month}
+              className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
+              close="true"
+            >
+              <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                <span className="capitalize">{month}</span>
+                <span className="text-slate-400 group-open:rotate-180 transition-transform">
+                  ▼
+                </span>
+              </summary>
 
-          {/* Container com Scroll para Saídas */}
-          <div className="overflow-y-auto max-h-[300px] pr-2">
-            {Object.entries(groupedExpenses).map(([month, days]) => (
-              <details
-                key={month}
-                className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
-                close="true"
-              >
-                <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-                  <span className="capitalize">{month}</span>
-                  <span className="text-slate-400 group-open:rotate-180 transition-transform">
-                    ▼
-                  </span>
-                </summary>
+              <div className="p-4 pt-0 border-t border-slate-100">
+                {Object.entries(days).map(([day, transactions]) => (
+                  <div key={day} className="mt-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      {day}
+                    </h4>
 
-                <div className="p-4 pt-0 border-t border-slate-100">
-                  {Object.entries(days).map(([day, transactions]) => (
-                    <div key={day} className="mt-4">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                        {day}
-                      </h4>
-
-                      <div className="space-y-1">
-                        {transactions.map((i) => (
-                          <div
-                            key={i.id}
-                            className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
-                          >
-                            <div>
-                              <span className="block text-sm font-medium text-slate-700">
-                                {i.name}
-                              </span>
-                              <p className="text-xs font-light text-slate-500">
-                                {i.description}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className="font-semibold text-rose-600 text-sm">
-                                {formatCurrency(i.value)}
-                              </span>
-                              <button
-                                onClick={() => handleRemove(i.id, "Saída")}
-                                className="p-1 hover:bg-red-50 rounded-full transition-colors"
-                              >
-                                <Trash2
-                                  size={14}
-                                  className="text-slate-300 hover:text-red-500"
-                                />
-                              </button>
-                            </div>
+                    <div className="space-y-1">
+                      {transactions.map((i) => (
+                        <div
+                          key={i.id}
+                          className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
+                        >
+                          <div>
+                            <span className="block text-sm font-medium text-slate-700">
+                              {i.name}
+                            </span>
+                            <p className="text-xs font-light text-slate-500">
+                              {i.description}
+                            </p>
                           </div>
-                        ))}
-                      </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-rose-600 text-sm">
+                              {formatCurrency(i.value)}
+                            </span>
+                            <button
+                              onClick={() => handleRemove(i.id, "Saída")}
+                              className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                            >
+                              <Trash2
+                                size={14}
+                                className="text-slate-300 hover:text-red-500"
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </details>
-            ))}
-          </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
         </div>
       </div>
     </div>
