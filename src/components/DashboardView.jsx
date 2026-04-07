@@ -14,6 +14,7 @@ import {
   ArrowUpCircle,
   PiggyBankIcon,
 } from "lucide-react";
+import { formatDate } from "../util/formatDate";
 
 const DashboardView = ({
   totalIncome,
@@ -32,18 +33,49 @@ const DashboardView = ({
   const [newItemName, setNewItemName] = useState("");
   const [newItemDescription, setNewItemDescription] = useState("");
   const [newItemValue, setNewItemValue] = useState("");
+  const [newItemDate, setNewItemDate] = useState("");
   const [inputType, setInputType] = useState("Saida");
+
+  const groupedIncomes = incomes.reduce((acc, item) => {
+    const date = new Date(item.date);
+    const month = date.toLocaleString("pt-BR", {
+      month: "long",
+      year: "numeric",
+    });
+    const day = date.toLocaleDateString("pt-BR");
+
+    if (!acc[month]) acc[month] = {};
+    if (!acc[month][day]) acc[month][day] = [];
+
+    acc[month][day].push(item);
+    return acc;
+  }, {});
+
+  const groupedExpenses = expenses.reduce((acc, item) => {
+    const date = new Date(item.date);
+    const month = date.toLocaleString("pt-BR", {
+      month: "long",
+      year: "numeric",
+    });
+    const day = date.toLocaleDateString("pt-BR");
+
+    if (!acc[month]) acc[month] = {};
+    if (!acc[month][day]) acc[month][day] = [];
+
+    acc[month][day].push(item);
+    return acc;
+  }, {});
 
   const handleAddItem = async (e) => {
     e.preventDefault();
-    if (!newItemName || !newItemValue) return;
+    if (!newItemName || !newItemValue || !newItemDate || !inputType) return;
 
     const newItem = {
       titulo: newItemName,
       descricao: newItemDescription,
       valor: parseFloat(newItemValue),
       tipo: inputType,
-      data: new Date().toISOString(),
+      data: formatDate(newItemDate),
     };
 
     try {
@@ -72,6 +104,7 @@ const DashboardView = ({
     setNewItemName("");
     setNewItemDescription("");
     setNewItemValue("");
+    setNewItemDate("");
   };
 
   const handleRemove = async (id, type) => {
@@ -158,63 +191,6 @@ const DashboardView = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-          <h3 className="font-bold text-emerald-700 mb-3">Entradas</h3>
-          {incomes.map((i) => (
-            <div
-              key={i.id}
-              className="flex justify-between py-2 border-b last:border-0 border-slate-100"
-            >
-              <div>
-                <span>{i.name}</span>
-                <p className="font-light text-slate-500 font-size-sm">
-                  {i.description}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-emerald-600">
-                  {formatCurrency(i.value)}
-                </span>
-                <button onClick={() => handleRemove(i.id, "Entrada")}>
-                  <Trash2
-                    size={14}
-                    className="text-slate-300 hover:text-red-500"
-                  />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-          <h3 className="font-bold text-rose-700 mb-3">Saídas</h3>
-          {expenses.map((e) => (
-            <div
-              key={e.id}
-              className="flex justify-between py-2 border-b last:border-0 border-slate-100"
-            >
-              <div>
-                <span>{e.name}</span>
-                <p className="font-light text-slate-500 font-size-sm">
-                  {e.description}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-rose-600">
-                  {formatCurrency(e.value)}
-                </span>
-                <button onClick={() => handleRemove(e.id, "Saida")}>
-                  <Trash2
-                    size={14}
-                    className="text-slate-300 hover:text-red-500"
-                  />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
         <h3 className="font-bold mb-4 flex gap-2 items-center">
           <Plus size={18} /> Adicionar Rápido
@@ -238,14 +214,21 @@ const DashboardView = ({
             onChange={(e) => setNewItemDescription(e.target.value)}
           />
           <input
+            type="date"
+            placeholder="Data"
+            className="p-2 border rounded-lg"
+            value={newItemDate}
+            onChange={(e) => setNewItemDate(e.target.value)}
+          />
+          <input
             type="number"
             placeholder="Valor"
-            className="w-32 p-2 border rounded-lg"
+            className="flex-1 p-2 border rounded-lg"
             value={newItemValue}
             onChange={(e) => setNewItemValue(e.target.value)}
           />
           <select
-            className="p-2 border rounded-lg"
+            className="flex-1 p-2 border rounded-lg"
             value={inputType}
             onChange={(e) => setInputType(e.target.value)}
           >
@@ -259,6 +242,127 @@ const DashboardView = ({
             Salvar
           </button>
         </form>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <h3 className="font-bold text-emerald-700 mb-3">Entradas</h3>
+          {Object.entries(groupedIncomes).map(([month, days]) => (
+            <details
+              key={month}
+              className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
+              open
+            >
+              <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                <span className="capitalize">{month}</span>
+                <span className="text-slate-400 group-open:rotate-180 transition-transform">
+                  ▼
+                </span>
+              </summary>
+
+              <div className="p-4 pt-0 border-t border-slate-100">
+                {Object.entries(days).map(([day, transactions]) => (
+                  <div key={day} className="mt-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      {day}
+                    </h4>
+
+                    <div className="space-y-1">
+                      {transactions.map((i) => (
+                        <div
+                          key={i.id}
+                          className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
+                        >
+                          <div>
+                            <span className="block text-sm font-medium text-slate-700">
+                              {i.name}
+                            </span>
+                            <p className="text-xs font-light text-slate-500">
+                              {i.description}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-emerald-600 text-sm">
+                              {formatCurrency(i.value)}
+                            </span>
+                            <button
+                              onClick={() => handleRemove(i.id, "Saída")}
+                              className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                            >
+                              <Trash2
+                                size={14}
+                                className="text-slate-300 hover:text-red-500"
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <h3 className="font-bold text-rose-700 mb-3">Saídas</h3>
+          {Object.entries(groupedExpenses).map(([month, days]) => (
+            <details
+              key={month}
+              className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
+              open
+            >
+              <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                <span className="capitalize">{month}</span>
+                <span className="text-slate-400 group-open:rotate-180 transition-transform">
+                  ▼
+                </span>
+              </summary>
+
+              <div className="p-4 pt-0 border-t border-slate-100">
+                {Object.entries(days).map(([day, transactions]) => (
+                  <div key={day} className="mt-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      {day}
+                    </h4>
+
+                    <div className="space-y-1">
+                      {transactions.map((i) => (
+                        <div
+                          key={i.id}
+                          className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
+                        >
+                          <div>
+                            <span className="block text-sm font-medium text-slate-700">
+                              {i.name}
+                            </span>
+                            <p className="text-xs font-light text-slate-500">
+                              {i.description}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-rose-600 text-sm">
+                              {formatCurrency(i.value)}
+                            </span>
+                            <button
+                              onClick={() => handleRemove(i.id, "Saída")}
+                              className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                            >
+                              <Trash2
+                                size={14}
+                                className="text-slate-300 hover:text-red-500"
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -2,14 +2,13 @@ import { useState, useEffect } from "react";
 import {
   TrendingUp,
   Wallet,
-  WifiOff,
   LayoutDashboard,
   Target,
   Bike,
 } from "lucide-react";
 
 import DashboardView from "./components/DashboardView";
-import InvestmentsView from "./components/InvestimentsView";
+import InvestmentsView from "./components/InvestmentsView";
 import WishlistView from "./components/WishListView";
 import MotoView from "./components/BikeView";
 
