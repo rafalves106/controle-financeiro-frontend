@@ -25,7 +25,7 @@ const App = () => {
   const totalIncome = incomes.reduce((acc, curr) => acc + curr.value, 0);
   const totalExpenses = expenses.reduce((acc, curr) => acc + curr.value, 0);
   const investmentAmount = totalIncome * (investmentGoalPercent / 100);
-  const finalBalance = totalIncome - totalExpenses - investmentAmount;
+  const finalBalance = totalIncome - totalExpenses; //investmentAmount;
   const hourlyRate = totalIncome > 0 ? totalIncome / workHoursPerMonth : 0;
 
   useEffect(() => {
