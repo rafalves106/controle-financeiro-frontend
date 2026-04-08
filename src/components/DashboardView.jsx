@@ -1,19 +1,17 @@
 import { useState } from "react";
-
 import { API_URL } from "../services/api";
-
 import { formatCurrency } from "../util/formatCurrency";
 import { formatDate } from "../util/formatDate";
 
 import {
   Plus,
   Trash2,
+  Pencil, // <-- IMPORTADO AQUI
   Wallet,
   DollarSign,
   PiggyBank,
   ArrowDownCircle,
   ArrowUpCircle,
-  PiggyBankIcon,
 } from "lucide-react";
 
 import {
@@ -31,14 +29,9 @@ import {
 const DashboardView = ({
   totalIncome,
   totalExpenses,
-  // investmentAmount,
-  // investmentGoalPercent,
-  // setInvestmentGoalPercent,
   finalBalance,
   incomes,
   expenses,
-  setIncomes,
-  setExpenses,
   fetchData,
   loading,
 }) => {
@@ -49,9 +42,21 @@ const DashboardView = ({
   const [inputType, setInputType] = useState("Saida");
   const [isFixed, setIsFixed] = useState(false);
   const [fixedDay, setFixedDay] = useState("");
+  const [fixedPeriod, setFixedPeriod] = useState("");
 
-  const groupedIncomes = incomes.reduce((acc, item) => {
-    const date = new Date(item.date);
+  // <-- NOVO ESTADO PARA CONTROLAR A EDIÇÃO
+  const [editingId, setEditingId] = useState(null);
+
+  const sortTransactions = (transactions) => {
+    return [...transactions].sort((a, b) => {
+      const dateA = new Date(a.date || a.data);
+      const dateB = new Date(b.date || b.data);
+      return dateA - dateB;
+    });
+  };
+
+  const groupedIncomes = sortTransactions(incomes).reduce((acc, item) => {
+    const date = new Date(item.date || item.data);
     const month = date.toLocaleString("pt-BR", {
       month: "long",
       year: "numeric",
@@ -65,8 +70,8 @@ const DashboardView = ({
     return acc;
   }, {});
 
-  const groupedExpenses = expenses.reduce((acc, item) => {
-    const date = new Date(item.date);
+  const groupedExpenses = sortTransactions(expenses).reduce((acc, item) => {
+    const date = new Date(item.date || item.data);
     const month = date.toLocaleString("pt-BR", {
       month: "long",
       year: "numeric",
@@ -119,63 +124,97 @@ const DashboardView = ({
       return acc;
     }, []);
 
-  const handleAddItem = async (e) => {
-    e.preventDefault();
-    if (!newItemName || !newItemValue || !newItemDate || !inputType) return;
+  // <-- NOVA FUNÇÃO PARA PREENCHER O FORMULÁRIO AO CLICAR NO LÁPIS
+  const handleEditClick = (item, type) => {
+    setEditingId(item.id);
+    setNewItemName(item.name || item.titulo);
+    setNewItemDescription(item.description || item.descricao);
+    setNewItemValue(item.value || item.valor);
+    setInputType(type);
 
-    if (!newItemName || !newItemValue || !inputType) return;
-    if (!isFixed && !newItemDate) return;
-    if (isFixed && !fixedDay) return;
-
-    const newItem = {
-      titulo: newItemName,
-      descricao: newItemDescription,
-      valor: parseFloat(newItemValue),
-      tipo: inputType,
-      data: !isFixed ? formatDate(newItemDate) : null,
-      fixa: isFixed,
-      diaFixo: isFixed ? parseInt(fixedDay) : null,
-    };
-
-    try {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newItem),
-      });
-      if (response.ok) fetchData();
-    } catch (err) {
-      alert("Erro ao salvar (API Offline?)", err);
+    // Formata a data para o input do tipo date (YYYY-MM-DD)
+    if (item.date || item.data) {
+      const dateObj = new Date(item.date || item.data);
+      setNewItemDate(dateObj.toISOString().split("T")[0]);
     }
 
-    const localItem = {
-      ...newItem,
-      id: Date.now(),
-      name: newItem.titulo,
-      description: newItem.descricao,
-      value: newItem.valor,
-      date: newItem.data,
-      type: newItem.tipo,
-    };
-    if (inputType === "Entrada") setIncomes([...incomes, localItem]);
-    else setExpenses([...expenses, localItem]);
+    setIsFixed(item.fixa || false);
+    setFixedDay(item.diaFixo || "");
+    setFixedPeriod(item.periodo || "");
 
+    // Opcional: Rola a página para cima suavemente para o usuário ver o form
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // <-- NOVA FUNÇÃO PARA CANCELAR A EDIÇÃO E LIMPAR O FORM
+  const clearForm = () => {
+    setEditingId(null);
     setNewItemName("");
     setNewItemDescription("");
     setNewItemValue("");
     setNewItemDate("");
     setIsFixed(false);
     setFixedDay("");
+    setFixedPeriod("");
+    setInputType("Saida");
   };
 
-  const handleRemove = async (id, type) => {
+  const handleAddItem = async (e) => {
+    e.preventDefault();
+
+    if (!newItemName || !newItemValue || !inputType) return;
+    if (!isFixed && !newItemDate) return;
+    if (isFixed && (!fixedDay || !fixedPeriod)) return;
+
+    const payload = {
+      titulo: newItemName,
+      descricao: newItemDescription,
+      valor: parseFloat(newItemValue),
+      tipo: inputType,
+      data: !isFixed ? formatDate(newItemDate) : new Date().toISOString(),
+      fixa: isFixed,
+      diaFixo: isFixed ? parseInt(fixedDay) : null,
+      periodo: isFixed ? parseInt(fixedPeriod) : 0,
+    };
+
+    try {
+      if (editingId) {
+        // <-- FLUXO DE EDIÇÃO (PUT)
+        const response = await fetch(`${API_URL}/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          fetchData(); // Atualiza a tela com os dados do banco
+          clearForm(); // Limpa o formulário
+        }
+      } else {
+        // <-- FLUXO DE CRIAÇÃO (POST)
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          fetchData();
+          clearForm();
+        }
+      }
+    } catch (err) {
+      alert("Erro ao salvar (API Offline?)", err);
+    }
+  };
+
+  const handleRemove = async (id) => {
     try {
       await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+      fetchData();
     } catch (err) {
       alert("Erro ao deletar (API Offline?)", err);
     }
-    if (type === "Entrada") setIncomes(incomes.filter((i) => i.id !== id));
-    else setExpenses(expenses.filter((i) => i.id !== id));
   };
 
   if (loading) {
@@ -196,6 +235,7 @@ const DashboardView = ({
 
         <div className="flex-1 w-full">
           <ResponsiveContainer width="100%" height={240}>
+            {/* Gráfico mantido igual... */}
             <AreaChart
               data={chartData}
               margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
@@ -241,7 +281,6 @@ const DashboardView = ({
                 iconType="circle"
                 wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }}
               />
-
               <Line
                 type="monotone"
                 dataKey="entrada"
@@ -251,7 +290,6 @@ const DashboardView = ({
                 activeDot={{ r: 4 }}
                 name="Entradas"
               />
-
               <Line
                 type="monotone"
                 dataKey="saida"
@@ -261,7 +299,6 @@ const DashboardView = ({
                 activeDot={{ r: 4 }}
                 name="Saídas"
               />
-
               <Area
                 type="monotone"
                 dataKey="saldo"
@@ -281,48 +318,53 @@ const DashboardView = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Cards mantidos iguais... */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
               <div className="flex items-center gap-2 text-emerald-600 mb-2 font-medium">
-                <ArrowUpCircle size={20} /> Entrada
+                {" "}
+                <ArrowUpCircle size={20} /> Entrada{" "}
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(totalIncome)}
+                {" "}
+                {formatCurrency(totalIncome)}{" "}
               </div>
             </div>
-
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
               <div className="flex items-center gap-2 text-rose-600 mb-2 font-medium">
-                <ArrowDownCircle size={20} /> Saídas
+                {" "}
+                <ArrowDownCircle size={20} /> Saídas{" "}
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(totalExpenses)}
+                {" "}
+                {formatCurrency(totalExpenses)}{" "}
               </div>
             </div>
-
             <div className="bg-blue-50 p-4 rounded-xl shadow-sm border border-blue-100">
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-2 text-blue-700 font-medium">
-                  <PiggyBank size={20} /> Investimentos
+                  {" "}
+                  <PiggyBank size={20} /> Investimentos{" "}
                 </div>
                 <span className="text-xs font-bold text-blue-700 bg-blue-200 px-2 py-0.5 rounded-full">
-                  {/* TODO: Implementar meta de investimento */}
-                  Meta: Definir
+                  {" "}
+                  Meta: Definir{" "}
                 </span>
               </div>
               <div className="text-2xl font-bold text-blue-900 mb-3">
-                {/* TODO: Implementar cálculo do valor total de investimento com base nas movimentações do tipo "Investimento" {formatCurrency(investmentAmount)} */}
-                A implementar
+                {" "}
+                A implementar{" "}
               </div>
             </div>
-
             <div
               className={`p-4 rounded-xl shadow-sm border ${finalBalance >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"}`}
             >
               <div className="flex items-center gap-2 mb-2 font-medium">
-                <DollarSign size={20} /> Saldo Livre
+                {" "}
+                <DollarSign size={20} /> Saldo Livre{" "}
               </div>
               <div className="text-2xl font-bold">
-                {formatCurrency(finalBalance)}
+                {" "}
+                {formatCurrency(finalBalance)}{" "}
               </div>
             </div>
           </div>
@@ -330,8 +372,14 @@ const DashboardView = ({
 
         <form
           onSubmit={handleAddItem}
-          className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 gap-4 flex flex-col h-full justify-between"
+          className={`bg-white p-6 rounded-xl shadow-sm border gap-4 flex flex-col justify-between h-full transition-all ${editingId ? "border-amber-400 ring-2 ring-amber-100" : "border-slate-200"}`}
         >
+          {editingId && (
+            <div className="text-sm font-bold text-amber-600 bg-amber-50 p-2 rounded-lg mb-2 flex justify-between items-center">
+              <span>Modo de Edição Ativo</span>
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row justify-between gap-4">
             <input
               type="text"
@@ -353,15 +401,22 @@ const DashboardView = ({
             <input
               type="checkbox"
               id="isFixed"
-              className="w-4 h-4 text-emerald-500 rounded border-slate-300"
+              className="w-4 h-4 text-emerald-500 rounded border-slate-300 disabled:opacity-50"
               checked={isFixed}
               onChange={(e) => setIsFixed(e.target.checked)}
+              disabled={editingId !== null} // <-- Bloqueia mudança de recorrência na edição
+              title={
+                editingId
+                  ? "Não é possível alterar a recorrência durante a edição"
+                  : ""
+              }
             />
             <label
               htmlFor="isFixed"
-              className="text-sm text-slate-600 font-medium"
+              className={`text-sm font-medium ${editingId ? "text-slate-400" : "text-slate-600"}`}
             >
-              É uma movimentação fixa mensal?
+              É uma movimentação recorrente?{" "}
+              {editingId && "(Bloqueado na edição)"}
             </label>
           </div>
 
@@ -375,15 +430,28 @@ const DashboardView = ({
                 onChange={(e) => setNewItemDate(e.target.value)}
               />
             ) : (
-              <input
-                type="number"
-                placeholder="Dia Fixo (1-31)"
-                min="1"
-                max="31"
-                className="flex-1 p-2 border rounded-lg placeholder-slate-500"
-                value={fixedDay}
-                onChange={(e) => setFixedDay(e.target.value)}
-              />
+              <>
+                <input
+                  type="number"
+                  placeholder="Dia de Venc. (1-31)"
+                  min="1"
+                  max="31"
+                  className="flex-1 p-2 border rounded-lg placeholder-slate-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  value={fixedDay}
+                  onChange={(e) => setFixedDay(e.target.value)}
+                  disabled={editingId !== null} // <-- Bloqueado na edição
+                />
+                <input
+                  type="number"
+                  placeholder="Duração (meses)"
+                  min="1"
+                  className="flex-1 p-2 border rounded-lg placeholder-slate-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  value={fixedPeriod}
+                  onChange={(e) => setFixedPeriod(e.target.value)}
+                  title="Por quantos meses essa conta vai se repetir?"
+                  disabled={editingId !== null} // <-- Bloqueado na edição
+                />
+              </>
             )}
 
             <input
@@ -401,11 +469,24 @@ const DashboardView = ({
               <option value="Saida">Saída</option>
               <option value="Entrada">Entrada</option>
             </select>
+          </div>
+
+          <div className="flex gap-2 mt-2">
+            {editingId && (
+              <button
+                type="button"
+                onClick={clearForm}
+                className="flex-1 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-medium transition-colors p-2"
+              >
+                Cancelar
+              </button>
+            )}
             <button
               type="submit"
-              className="flex-1 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 font-medium transition-colors"
+              className={`flex-2 text-white rounded-lg font-medium transition-colors p-2 ${editingId ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"}`}
+              style={{ flexGrow: 2 }}
             >
-              Salvar
+              {editingId ? "Atualizar" : "Salvar"}
             </button>
           </div>
         </form>
@@ -442,19 +523,33 @@ const DashboardView = ({
                         >
                           <div>
                             <span className="block text-sm font-medium text-slate-700">
-                              {i.name}
+                              {i.name || i.titulo}
                             </span>
                             <p className="text-xs font-light text-slate-500">
-                              {i.description}
+                              {i.description || i.descricao}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-semibold text-emerald-600 text-sm">
-                              {formatCurrency(i.value)}
+                              {formatCurrency(i.value || i.valor)}
                             </span>
+
+                            {/* <-- BOTÃO DE EDITAR (LÁPIS) ADICIONADO AQUI */}
+                            <button
+                              onClick={() => handleEditClick(i, "Entrada")}
+                              className="p-1 hover:bg-amber-50 rounded-full transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil
+                                size={14}
+                                className="text-slate-300 hover:text-amber-500"
+                              />
+                            </button>
+
                             <button
                               onClick={() => handleRemove(i.id, "Entrada")}
                               className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                              title="Excluir"
                             >
                               <Trash2
                                 size={14}
@@ -502,19 +597,33 @@ const DashboardView = ({
                         >
                           <div>
                             <span className="block text-sm font-medium text-slate-700">
-                              {i.name}
+                              {i.name || i.titulo}
                             </span>
                             <p className="text-xs font-light text-slate-500">
-                              {i.description}
+                              {i.description || i.descricao}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-semibold text-rose-600 text-sm">
-                              {formatCurrency(i.value)}
+                              {formatCurrency(i.value || i.valor)}
                             </span>
+
+                            {/* <-- BOTÃO DE EDITAR (LÁPIS) ADICIONADO AQUI */}
+                            <button
+                              onClick={() => handleEditClick(i, "Saida")}
+                              className="p-1 hover:bg-amber-50 rounded-full transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil
+                                size={14}
+                                className="text-slate-300 hover:text-amber-500"
+                              />
+                            </button>
+
                             <button
                               onClick={() => handleRemove(i.id, "Saída")}
                               className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                              title="Excluir"
                             >
                               <Trash2
                                 size={14}
