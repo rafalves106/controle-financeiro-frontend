@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { API_URL } from "../services/api";
 import { formatCurrency } from "../util/formatCurrency";
-import { formatDate } from "../util/formatDate";
+import TransactionModal from "./TransactionModal";
 
 import {
   Trash2,
@@ -12,6 +12,8 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Briefcase,
+  Plus,
+  PieChart,
 } from "lucide-react";
 
 import {
@@ -48,16 +50,8 @@ const DashboardView = ({
   incomes = [],
   expenses = [],
 }) => {
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemDescription, setNewItemDescription] = useState("");
-  const [newItemValue, setNewItemValue] = useState("");
-  const [newItemDate, setNewItemDate] = useState("");
-  const [inputType, setInputType] = useState("Saida");
-  const [newItemCategoryId, setNewItemCategoryId] = useState("");
-  const [isFixed, setIsFixed] = useState(false);
-  const [fixedPeriod, setFixedPeriod] = useState("");
-
-  const [editingId, setEditingId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
 
   const isCurrentSelectedMonth =
     selectedMes === new Date().getMonth() + 1 &&
@@ -116,6 +110,42 @@ const DashboardView = ({
     [expenses],
   );
 
+  const expensesByCategory = useMemo(() => {
+    const grouped = expenses
+      .filter((item) => !item.investimentoId)
+      .reduce((acc, item) => {
+        const categoria = item.categoria || {};
+        const id = item.categoriaId || null;
+        const key = id || "sem-categoria";
+        const totalValue = Number(item.value || item.valor || 0);
+
+        if (!acc[key]) {
+          acc[key] = {
+            id,
+            nome: categoria.nome || "Sem categoria",
+            icone: categoria.icone || "",
+            cor: categoria.cor || "#94a3b8",
+            total: 0,
+          };
+        }
+
+        acc[key].total += totalValue;
+        return acc;
+      }, {});
+
+    return Object.values(grouped)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [expenses]);
+
+  const totalCategoryExpenses = useMemo(
+    () =>
+      expenses
+        .filter((item) => !item.investimentoId)
+        .reduce((acc, item) => acc + Number(item.value || item.valor || 0), 0),
+    [expenses],
+  );
+
   const chartData = useMemo(() => {
     const grouped = [...incomes, ...expenses].reduce((acc, item) => {
       const rawDate = item.date || item.data;
@@ -157,88 +187,8 @@ const DashboardView = ({
   }, [incomes, expenses]);
 
   const handleEditClick = (item, type) => {
-    setEditingId(item.id);
-    setNewItemName(item.name || item.titulo);
-    setNewItemDescription(item.description || item.descricao);
-    setNewItemValue(item.value || item.valor);
-    setInputType(type);
-    setNewItemCategoryId(item.categoriaId || "");
-
-    if (item.date || item.data) {
-      const dateObj = new Date(item.date || item.data);
-      setNewItemDate(dateObj.toISOString().split("T")[0]);
-    }
-
-    setIsFixed(item.fixa || false);
-    setFixedPeriod(item.periodo || "");
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const clearForm = () => {
-    setEditingId(null);
-    setNewItemName("");
-    setNewItemDescription("");
-    setNewItemValue("");
-    setNewItemDate("");
-    setNewItemCategoryId("");
-    setIsFixed(false);
-    setFixedPeriod("");
-    setInputType("Saida");
-  };
-
-  const handleAddItem = async (e) => {
-    e.preventDefault();
-
-    if (!newItemName || !newItemValue || !inputType || !newItemDate) {
-      console.log("Faltam dados básicos");
-      return;
-    }
-
-    if (isFixed && !fixedPeriod) {
-      console.log("Falta o período de duração");
-      return;
-    }
-
-    const payload = {
-      titulo: newItemName,
-      descricao: newItemDescription,
-      valor: parseFloat(newItemValue),
-      tipo: inputType,
-      data: formatDate(newItemDate),
-      fixa: isFixed,
-      periodo: isFixed ? parseInt(fixedPeriod) : 0,
-      categoriaId: newItemCategoryId || null,
-    };
-
-    try {
-      if (editingId) {
-        const response = await fetch(`${API_URL}/${editingId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          fetchData();
-          clearForm();
-        }
-      } else {
-        const response = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          fetchData();
-          clearForm();
-        }
-      }
-    } catch (err) {
-      console.error("Erro ao salvar item:", err);
-      alert("Erro ao salvar. Verifique o console.");
-    }
+    setEditingItem({ ...item, tipo: type });
+    setIsModalOpen(true);
   };
 
   const handleRemove = async (id) => {
@@ -369,7 +319,7 @@ const DashboardView = ({
           </ResponsiveContainer>
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 gap-6 items-start">
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
@@ -418,333 +368,292 @@ const DashboardView = ({
               </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <PieChart size={18} className="text-slate-500" /> Gastos por
+              Categoria
+            </h3>
+
+            {expensesByCategory.length === 0 ? (
+              <div className="text-center text-sm text-slate-400 py-6">
+                Nenhum gasto registrado neste mês
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {expensesByCategory.map((item) => {
+                  const percentage =
+                    totalCategoryExpenses > 0
+                      ? (item.total / totalCategoryExpenses) * 100
+                      : 0;
+
+                  return (
+                    <div key={item.id || item.nome}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-slate-700 font-medium">
+                          {item.icone} {item.nome}
+                        </span>
+                        <span className="text-slate-600 font-semibold">
+                          {formatCurrency(item.total)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min(percentage, 100)}%`,
+                            backgroundColor: item.cor || "#94a3b8",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-
-        <form
-          onSubmit={handleAddItem}
-          className={`bg-white p-6 rounded-xl shadow-sm border gap-4 flex flex-col justify-between h-full transition-all ${editingId ? "border-amber-400 ring-2 ring-amber-100" : "border-slate-200"}`}
-        >
-          {editingId && (
-            <div className="text-sm font-bold text-amber-600 bg-amber-50 p-2 rounded-lg mb-2 flex justify-between items-center">
-              <span>Modo de Edição Ativo</span>
-            </div>
-          )}
-
-          <div className="flex flex-col md:flex-row justify-between gap-4">
-            <input
-              type="text"
-              placeholder="Título"
-              className="flex-2 p-2 border rounded-lg placeholder-slate-500"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-            />
-            <input
-              type="text"
-              placeholder="Descrição"
-              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
-              value={newItemDescription}
-              onChange={(e) => setNewItemDescription(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2 px-1">
-            <input
-              type="checkbox"
-              id="isFixed"
-              className="w-4 h-4 text-emerald-500 rounded border-slate-300 disabled:opacity-50"
-              checked={isFixed}
-              onChange={(e) => setIsFixed(e.target.checked)}
-              disabled={editingId !== null}
-              title={
-                editingId
-                  ? "Não é possível alterar a recorrência durante a edição"
-                  : ""
-              }
-            />
-            <label
-              htmlFor="isFixed"
-              className={`text-sm font-medium ${editingId ? "text-slate-400" : "text-slate-600"}`}
-            >
-              É uma movimentação recorrente?{" "}
-              {editingId && "(Bloqueado na edição)"}
-            </label>
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-4">
-            <input
-              type="date"
-              placeholder="Data"
-              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
-              value={newItemDate}
-              onChange={(e) => setNewItemDate(e.target.value)}
-            />
-
-            {isFixed && (
-              <input
-                type="number"
-                placeholder="Duração (meses)"
-                min="1"
-                className="flex-1 p-2 border rounded-lg placeholder-slate-500 disabled:bg-slate-50 disabled:text-slate-400"
-                value={fixedPeriod}
-                onChange={(e) => setFixedPeriod(e.target.value)}
-                title="Por quantos meses essa conta vai se repetir?"
-                disabled={editingId !== null}
-              />
-            )}
-
-            <input
-              type="number"
-              placeholder="Valor"
-              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
-              value={newItemValue}
-              onChange={(e) => setNewItemValue(e.target.value)}
-            />
-            <select
-              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
-              value={inputType}
-              onChange={(e) => setInputType(e.target.value)}
-            >
-              <option value="Saida">Saída</option>
-              <option value="Entrada">Entrada</option>
-            </select>
-
-            <select
-              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
-              value={newItemCategoryId}
-              onChange={(e) => setNewItemCategoryId(e.target.value)}
-            >
-              <option value="">Sem categoria</option>
-              {categorias.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.icone ? `${cat.icone} ` : ""}
-                  {cat.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex gap-2 mt-2">
-            {editingId && (
-              <button
-                type="button"
-                onClick={clearForm}
-                className="flex-1 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-medium transition-colors p-2"
-              >
-                Cancelar
-              </button>
-            )}
-            <button
-              type="submit"
-              className={`flex-2 text-white rounded-lg font-medium transition-colors p-2 ${editingId ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"}`}
-              style={{ flexGrow: 2 }}
-            >
-              {editingId ? "Atualizar" : "Salvar"}
-            </button>
-          </div>
-        </form>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col">
           <h3 className="font-bold text-emerald-700 mb-3 shrink-0">Entradas</h3>
-          {Object.entries(groupedIncomes).map(([month, days]) => (
-            <details
-              key={month}
-              className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
-              close="true"
-            >
-              <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-                <span className="capitalize">{month}</span>
-                <span className="text-slate-400 group-open:rotate-180 transition-transform">
-                  ▼
-                </span>
-              </summary>
+          {Object.keys(groupedIncomes).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <ArrowUpCircle size={32} className="text-slate-200" />
+              <p className="text-sm text-slate-400">
+                Nenhuma entrada em {currentMonthLabel}
+              </p>
+            </div>
+          ) : (
+            Object.entries(groupedIncomes).map(([month, days]) => (
+              <details
+                key={month}
+                className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
+                close="true"
+              >
+                <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                  <span className="capitalize">{month}</span>
+                  <span className="text-slate-400 group-open:rotate-180 transition-transform">
+                    ▼
+                  </span>
+                </summary>
 
-              <div className="p-4 pt-0 border-t border-slate-100">
-                {Object.entries(days).map(([day, transactions]) => (
-                  <div key={day} className="mt-4">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                      {day}
-                    </h4>
+                <div className="p-4 pt-0 border-t border-slate-100">
+                  {Object.entries(days).map(([day, transactions]) => (
+                    <div key={day} className="mt-4">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        {day}
+                      </h4>
 
-                    <div className="space-y-1">
-                      {transactions.map((i) => (
-                        <div
-                          key={i.id}
-                          className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
-                        >
-                          <div>
-                            <span className="block text-sm font-medium text-slate-700">
-                              {i.name || i.titulo}
-                            </span>
-                            {i.categoria && (
-                              <span
-                                className="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 mt-1"
-                                style={{
-                                  backgroundColor:
-                                    (i.categoria.cor || "#94a3b8") + "20",
-                                  color: i.categoria.cor || "#94a3b8",
-                                }}
-                              >
-                                {i.categoria.icone} {i.categoria.nome}
+                      <div className="space-y-1">
+                        {transactions.map((i) => (
+                          <div
+                            key={i.id}
+                            className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
+                          >
+                            <div>
+                              <span className="block text-sm font-medium text-slate-700">
+                                {i.name || i.titulo}
                               </span>
-                            )}
-                            <p className="text-xs font-light text-slate-500">
-                              {i.description || i.descricao}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-semibold text-emerald-600 text-sm">
-                              {formatCurrency(i.value || i.valor)}
-                            </span>
-
-                            {/* <-- TRAVA DE EDIÇÃO/EXCLUSÃO AQUI --> */}
-                            {i.investimentoId ? (
-                              <div
-                                className="flex items-center gap-1 text-blue-500 bg-blue-50 px-2 py-1 rounded-md cursor-help"
-                                title="Gerenciado na aba de Investimentos"
-                              >
-                                <Briefcase size={14} />
-                                <span className="text-[10px] font-bold uppercase hidden sm:inline">
-                                  Investimento
+                              {i.categoria && (
+                                <span
+                                  className="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 mt-1"
+                                  style={{
+                                    backgroundColor:
+                                      (i.categoria.cor || "#94a3b8") + "20",
+                                    color: i.categoria.cor || "#94a3b8",
+                                  }}
+                                >
+                                  {i.categoria.icone} {i.categoria.nome}
                                 </span>
-                              </div>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleEditClick(i, "Entrada")}
-                                  className="p-1 hover:bg-amber-50 rounded-full transition-colors"
-                                  title="Editar"
-                                >
-                                  <Pencil
-                                    size={14}
-                                    className="text-slate-300 hover:text-amber-500"
-                                  />
-                                </button>
+                              )}
+                              <p className="text-xs font-light text-slate-500">
+                                {i.description || i.descricao}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold text-emerald-600 text-sm">
+                                {formatCurrency(i.value || i.valor)}
+                              </span>
 
-                                <button
-                                  onClick={() => handleRemove(i.id)}
-                                  className="p-1 hover:bg-red-50 rounded-full transition-colors"
-                                  title="Excluir"
+                              {/* <-- TRAVA DE EDIÇÃO/EXCLUSÃO AQUI --> */}
+                              {i.investimentoId ? (
+                                <div
+                                  className="flex items-center gap-1 text-blue-500 bg-blue-50 px-2 py-1 rounded-md cursor-help"
+                                  title="Gerenciado na aba de Investimentos"
                                 >
-                                  <Trash2
-                                    size={14}
-                                    className="text-slate-300 hover:text-red-500"
-                                  />
-                                </button>
-                              </>
-                            )}
+                                  <Briefcase size={14} />
+                                  <span className="text-[10px] font-bold uppercase hidden sm:inline">
+                                    Investimento
+                                  </span>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      handleEditClick(i, "Entrada")
+                                    }
+                                    className="p-1 hover:bg-amber-50 rounded-full transition-colors"
+                                    title="Editar"
+                                  >
+                                    <Pencil
+                                      size={14}
+                                      className="text-slate-300 hover:text-amber-500"
+                                    />
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleRemove(i.id)}
+                                    className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                                    title="Excluir"
+                                  >
+                                    <Trash2
+                                      size={14}
+                                      className="text-slate-300 hover:text-red-500"
+                                    />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </details>
-          ))}
+                  ))}
+                </div>
+              </details>
+            ))
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col">
           <h3 className="font-bold text-rose-700 mb-3 shrink-0">Saídas</h3>
-          {Object.entries(groupedExpenses).map(([month, days]) => (
-            <details
-              key={month}
-              className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
-              close="true"
-            >
-              <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-                <span className="capitalize">{month}</span>
-                <span className="text-slate-400 group-open:rotate-180 transition-transform">
-                  ▼
-                </span>
-              </summary>
+          {Object.keys(groupedExpenses).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <ArrowDownCircle size={32} className="text-slate-200" />
+              <p className="text-sm text-slate-400">
+                Nenhuma saída em {currentMonthLabel}
+              </p>
+            </div>
+          ) : (
+            Object.entries(groupedExpenses).map(([month, days]) => (
+              <details
+                key={month}
+                className="group mb-4 bg-white rounded-lg border border-slate-200 shadow-sm"
+                close="true"
+              >
+                <summary className="flex justify-between items-center p-4 cursor-pointer list-none font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                  <span className="capitalize">{month}</span>
+                  <span className="text-slate-400 group-open:rotate-180 transition-transform">
+                    ▼
+                  </span>
+                </summary>
 
-              <div className="p-4 pt-0 border-t border-slate-100">
-                {Object.entries(days).map(([day, transactions]) => (
-                  <div key={day} className="mt-4">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                      {day}
-                    </h4>
+                <div className="p-4 pt-0 border-t border-slate-100">
+                  {Object.entries(days).map(([day, transactions]) => (
+                    <div key={day} className="mt-4">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        {day}
+                      </h4>
 
-                    <div className="space-y-1">
-                      {transactions.map((i) => (
-                        <div
-                          key={i.id}
-                          className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
-                        >
-                          <div>
-                            <span className="block text-sm font-medium text-slate-700">
-                              {i.name || i.titulo}
-                            </span>
-                            {i.categoria && (
-                              <span
-                                className="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 mt-1"
-                                style={{
-                                  backgroundColor:
-                                    (i.categoria.cor || "#94a3b8") + "20",
-                                  color: i.categoria.cor || "#94a3b8",
-                                }}
-                              >
-                                {i.categoria.icone} {i.categoria.nome}
+                      <div className="space-y-1">
+                        {transactions.map((i) => (
+                          <div
+                            key={i.id}
+                            className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
+                          >
+                            <div>
+                              <span className="block text-sm font-medium text-slate-700">
+                                {i.name || i.titulo}
                               </span>
-                            )}
-                            <p className="text-xs font-light text-slate-500">
-                              {i.description || i.descricao}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-semibold text-rose-600 text-sm">
-                              {formatCurrency(i.value || i.valor)}
-                            </span>
-
-                            {/* <-- TRAVA DE EDIÇÃO/EXCLUSÃO AQUI --> */}
-                            {i.investimentoId ? (
-                              <div
-                                className="flex items-center gap-1 text-blue-500 bg-blue-50 px-2 py-1 rounded-md cursor-help"
-                                title="Gerenciado na aba de Investimentos"
-                              >
-                                <Briefcase size={14} />
-                                <span className="text-[10px] font-bold uppercase hidden sm:inline">
-                                  Investimento
+                              {i.categoria && (
+                                <span
+                                  className="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 mt-1"
+                                  style={{
+                                    backgroundColor:
+                                      (i.categoria.cor || "#94a3b8") + "20",
+                                    color: i.categoria.cor || "#94a3b8",
+                                  }}
+                                >
+                                  {i.categoria.icone} {i.categoria.nome}
                                 </span>
-                              </div>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleEditClick(i, "Saida")}
-                                  className="p-1 hover:bg-amber-50 rounded-full transition-colors"
-                                  title="Editar"
-                                >
-                                  <Pencil
-                                    size={14}
-                                    className="text-slate-300 hover:text-amber-500"
-                                  />
-                                </button>
+                              )}
+                              <p className="text-xs font-light text-slate-500">
+                                {i.description || i.descricao}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold text-rose-600 text-sm">
+                                {formatCurrency(i.value || i.valor)}
+                              </span>
 
-                                <button
-                                  onClick={() => handleRemove(i.id)}
-                                  className="p-1 hover:bg-red-50 rounded-full transition-colors"
-                                  title="Excluir"
+                              {/* <-- TRAVA DE EDIÇÃO/EXCLUSÃO AQUI --> */}
+                              {i.investimentoId ? (
+                                <div
+                                  className="flex items-center gap-1 text-blue-500 bg-blue-50 px-2 py-1 rounded-md cursor-help"
+                                  title="Gerenciado na aba de Investimentos"
                                 >
-                                  <Trash2
-                                    size={14}
-                                    className="text-slate-300 hover:text-red-500"
-                                  />
-                                </button>
-                              </>
-                            )}
+                                  <Briefcase size={14} />
+                                  <span className="text-[10px] font-bold uppercase hidden sm:inline">
+                                    Investimento
+                                  </span>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleEditClick(i, "Saida")}
+                                    className="p-1 hover:bg-amber-50 rounded-full transition-colors"
+                                    title="Editar"
+                                  >
+                                    <Pencil
+                                      size={14}
+                                      className="text-slate-300 hover:text-amber-500"
+                                    />
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleRemove(i.id)}
+                                    className="p-1 hover:bg-red-50 rounded-full transition-colors"
+                                    title="Excluir"
+                                  >
+                                    <Trash2
+                                      size={14}
+                                      className="text-slate-300 hover:text-red-500"
+                                    />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </details>
-          ))}
+                  ))}
+                </div>
+              </details>
+            ))
+          )}
         </div>
       </div>
+
+      <button
+        className="fixed bottom-6 right-6 z-40 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center transition-colors"
+        onClick={() => {
+          setEditingItem(null);
+          setIsModalOpen(true);
+        }}
+      >
+        <Plus size={24} />
+      </button>
+
+      <TransactionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={fetchData}
+        categorias={categorias}
+        editingItem={editingItem}
+      />
     </div>
   );
 };
