@@ -14,14 +14,25 @@ import MotoView from "./components/BikeView";
 
 import { API_URL } from "./services/api";
 
+const mapApiToFrontend = (item) => ({
+  id: item.id,
+  name: item.titulo,
+  description: item.descricao,
+  value: item.valor,
+  date: item.data,
+  type: item.tipo,
+  investimentoId: item.investimentoId,
+});
+
 const App = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [incomes, setIncomes] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  const [workHoursPerMonth, setWorkHoursPerMonth] = useState(120);
+  // const [workHoursPerMonth, setWorkHoursPerMonth] = useState(120);
   const [loading, setLoading] = useState(false);
-  const [investmentGoalPercent] = useState(10);
   const [investments, setInvestments] = useState([]);
+
+  const INVESTMENT_GOAL_PERCENT = 10;
 
   const totalInvestmentsBalance = investments.reduce(
     (acc, curr) => acc + curr.saldoAtual,
@@ -52,10 +63,10 @@ const App = () => {
     })
     .reduce((acc, curr) => acc + curr.value, 0);
 
-  const investmentAmount = currentMonthIncome * (investmentGoalPercent / 100);
+  const investmentAmount = currentMonthIncome * (INVESTMENT_GOAL_PERCENT / 100);
 
-  const hourlyRate =
-    currentMonthIncome > 0 ? currentMonthIncome / workHoursPerMonth : 0;
+  // const hourlyRate =
+  // currentMonthIncome > 0 ? currentMonthIncome / workHoursPerMonth : 0;
 
   useEffect(() => {
     fetchData();
@@ -89,16 +100,6 @@ const App = () => {
     }
   };
 
-  const mapApiToFrontend = (item) => ({
-    id: item.id,
-    name: item.titulo,
-    description: item.descricao,
-    value: item.valor,
-    date: item.data,
-    type: item.tipo,
-    investimentoId: item.investimentoId,
-  });
-
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden">
       <aside className="w-20 md:w-64 bg-slate-900 text-slate-300 flex flex-col transition-all duration-300">
@@ -121,23 +122,23 @@ const App = () => {
               icon: <TrendingUp size={20} />,
               color: "bg-blue-600",
             },
-            {
-              id: "wishlist",
-              label: "Metas & Sonhos",
-              icon: <Target size={20} />,
-              color: "bg-indigo-600",
-            },
-            {
-              id: "moto",
-              label: "Manutenção Moto",
-              icon: <Bike size={20} />,
-              color: "bg-orange-600",
-            },
+            // {
+            //   id: "wishlist",
+            //   label: "Metas & Sonhos",
+            //   icon: <Target size={20} />,
+            //   color: "bg-indigo-600",
+            // },
+            // {
+            //   id: "moto",
+            //   label: "Manutenção Moto",
+            //   icon: <Bike size={20} />,
+            //   color: "bg-orange-600",
+            // },
           ].map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 
+              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200
                 ${activeTab === item.id ? `${item.color} text-white shadow-lg` : "hover:bg-slate-800 hover:text-white"}`}
             >
               {item.icon}
@@ -178,9 +179,10 @@ const App = () => {
             <InvestmentsView
               investmentAmount={investmentAmount}
               fetchData={fetchData}
+              investments={investments}
             />
           )}
-          {activeTab === "wishlist" && (
+          {/* {activeTab === "wishlist" && (
             <WishlistView
               totalIncome={totalIncome}
               hourlyRate={hourlyRate}
@@ -188,7 +190,7 @@ const App = () => {
               setWorkHoursPerMonth={setWorkHoursPerMonth}
             />
           )}
-          {activeTab === "moto" && <MotoView />}
+          {activeTab === "moto" && <MotoView />} */}
         </div>
       </main>
     </div>

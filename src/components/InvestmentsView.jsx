@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { API_URL } from "../services/api";
 import { formatCurrency } from "../util/formatCurrency";
 import { formatDate } from "../util/formatDate";
@@ -18,7 +18,7 @@ import {
 // Adapta a URL base para o endpoint de investimentos
 const INV_API_URL = API_URL.replace("movimentacoes", "investimentos");
 
-const InvestmentsView = ({ investmentAmount, fetchData }) => {
+const InvestmentsView = ({ investmentAmount, investments, fetchData }) => {
   // --- ESTADOS DO SIMULADOR (Mantidos do seu original) ---
   const [initialVal, setInitialVal] = useState(0);
   const [monthlyVal, setMonthlyVal] = useState(investmentAmount || 0);
@@ -33,10 +33,6 @@ const InvestmentsView = ({ investmentAmount, fetchData }) => {
   const totalInvested = Number(initialVal) + Number(monthlyVal) * months;
   const totalInterest = futureValue - totalInvested;
 
-  // --- ESTADOS DO CRUD DE INVESTIMENTOS ---
-  const [investments, setInvestments] = useState([]);
-  const [loading, setLoading] = useState(false);
-
   // Estados do Formulário de Novo Investimento
   const [newNome, setNewNome] = useState("");
   const [newInstituicao, setNewInstituicao] = useState("");
@@ -50,27 +46,6 @@ const InvestmentsView = ({ investmentAmount, fetchData }) => {
   // Ex: { id: "123", type: "aporte" }
   const [activeAction, setActiveAction] = useState({ id: null, type: null });
   const [actionValue, setActionValue] = useState("");
-
-  // --- FUNÇÕES DE INTEGRAÇÃO COM A API ---
-
-  useEffect(() => {
-    fetchInvestments();
-  }, []);
-
-  const fetchInvestments = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${INV_API_URL}?mostrarInativos=false`);
-      if (response.ok) {
-        const data = await response.json();
-        setInvestments(data);
-      }
-    } catch (err) {
-      console.error("Erro ao buscar investimentos", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCreateInvestment = async (e) => {
     e.preventDefault();
@@ -94,7 +69,6 @@ const InvestmentsView = ({ investmentAmount, fetchData }) => {
       });
 
       if (response.ok) {
-        fetchInvestments();
         fetchData();
         setNewNome("");
         setNewInstituicao("");
@@ -104,7 +78,8 @@ const InvestmentsView = ({ investmentAmount, fetchData }) => {
         alert("Erro ao criar investimento");
       }
     } catch (err) {
-      alert("Erro de conexão (API Offline?)", err);
+      console.error("Erro ao criar investimento:", err);
+      alert("Erro ao criar investimento. Verifique o console.");
     }
   };
 
@@ -136,7 +111,6 @@ const InvestmentsView = ({ investmentAmount, fetchData }) => {
       });
 
       if (response.ok) {
-        fetchInvestments();
         setActiveAction({ id: null, type: null });
         setActionValue("");
         fetchData();
@@ -145,7 +119,8 @@ const InvestmentsView = ({ investmentAmount, fetchData }) => {
         alert(`Erro: ${errorText}`);
       }
     } catch (err) {
-      alert("Erro de conexão", err);
+      console.error("Erro ao executar ação:", err);
+      alert("Erro ao executar ação. Verifique o console.");
     }
   };
 
@@ -161,10 +136,12 @@ const InvestmentsView = ({ investmentAmount, fetchData }) => {
       const response = await fetch(`${INV_API_URL}/${id}`, {
         method: "DELETE",
       });
-      if (response.ok) fetchInvestments();
-      fetchData();
+      if (response.ok) {
+        fetchData();
+      }
     } catch (err) {
-      alert("Erro ao remover", err);
+      console.error("Erro ao remover investimento:", err);
+      alert("Erro ao remover investimento. Verifique o console.");
     }
   };
 
@@ -362,11 +339,7 @@ const InvestmentsView = ({ investmentAmount, fetchData }) => {
           <Briefcase className="text-blue-600" size={20} /> Minha Carteira
         </h3>
 
-        {loading ? (
-          <p className="text-slate-400 text-center py-8">
-            Carregando carteira...
-          </p>
-        ) : investments.length === 0 ? (
+        {investments.length === 0 ? (
           <p className="text-slate-400 text-center py-8">
             Você ainda não possui investimentos cadastrados.
           </p>

@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { API_URL } from "../services/api";
 import { formatCurrency } from "../util/formatCurrency";
 import { formatDate } from "../util/formatDate";
 
 import {
-  Plus,
   Trash2,
   Pencil,
   Wallet,
@@ -27,15 +26,23 @@ import {
   Legend,
 } from "recharts";
 
+const sortTransactions = (transactions) => {
+  return [...transactions].sort((a, b) => {
+    const dateA = new Date(a.date || a.data);
+    const dateB = new Date(b.date || b.data);
+    return dateA - dateB;
+  });
+};
+
 const DashboardView = ({
   totalIncome,
   totalExpenses,
   finalBalance,
-  incomes,
   totalInvestmentsBalance,
-  expenses,
   fetchData,
   loading,
+  incomes,
+  expenses,
 }) => {
   const [newItemName, setNewItemName] = useState("");
   const [newItemDescription, setNewItemDescription] = useState("");
@@ -47,82 +54,81 @@ const DashboardView = ({
 
   const [editingId, setEditingId] = useState(null);
 
-  const sortTransactions = (transactions) => {
-    return [...transactions].sort((a, b) => {
-      const dateA = new Date(a.date || a.data);
-      const dateB = new Date(b.date || b.data);
-      return dateA - dateB;
-    });
-  };
+  const groupedIncomes = useMemo(
+    () =>
+      sortTransactions(incomes).reduce((acc, item) => {
+        const date = new Date(item.date || item.data);
+        const month = date.toLocaleString("pt-BR", {
+          month: "long",
+          year: "numeric",
+        });
+        const day = date.toLocaleDateString("pt-BR");
 
-  const groupedIncomes = sortTransactions(incomes).reduce((acc, item) => {
-    const date = new Date(item.date || item.data);
-    const month = date.toLocaleString("pt-BR", {
-      month: "long",
-      year: "numeric",
-    });
-    const day = date.toLocaleDateString("pt-BR");
+        if (!acc[month]) acc[month] = {};
+        if (!acc[month][day]) acc[month][day] = [];
+        acc[month][day].push(item);
+        return acc;
+      }, {}),
+    [incomes],
+  );
 
-    if (!acc[month]) acc[month] = {};
-    if (!acc[month][day]) acc[month][day] = [];
+  const groupedExpenses = useMemo(
+    () =>
+      sortTransactions(expenses).reduce((acc, item) => {
+        const date = new Date(item.date || item.data);
+        const month = date.toLocaleString("pt-BR", {
+          month: "long",
+          year: "numeric",
+        });
+        const day = date.toLocaleDateString("pt-BR");
 
-    acc[month][day].push(item);
-    return acc;
-  }, {});
+        if (!acc[month]) acc[month] = {};
+        if (!acc[month][day]) acc[month][day] = [];
+        acc[month][day].push(item);
+        return acc;
+      }, {}),
+    [expenses],
+  );
 
-  const groupedExpenses = sortTransactions(expenses).reduce((acc, item) => {
-    const date = new Date(item.date || item.data);
-    const month = date.toLocaleString("pt-BR", {
-      month: "long",
-      year: "numeric",
-    });
-    const day = date.toLocaleDateString("pt-BR");
+  const chartData = useMemo(() => {
+    const grouped = [...incomes, ...expenses].reduce((acc, item) => {
+      const rawDate = item.date || item.data;
 
-    if (!acc[month]) acc[month] = {};
-    if (!acc[month][day]) acc[month][day] = [];
+      // 👇 Pega só a parte da data sem converter timezone
+      const dateKey = rawDate.split("T")[0]; // "2026-04-05" sempre correto
 
-    acc[month][day].push(item);
-    return acc;
-  }, {});
-
-  const chartData = Object.entries(
-    [...incomes, ...expenses].reduce((acc, item) => {
-      const dateKey = new Date(item.date).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-      });
-
-      const isIncome = item.type?.toLowerCase() === "entrada";
-      const value = Number(item.value);
+      const isIncome = (item.type || item.tipo)?.toLowerCase() === "entrada";
+      const value = Number(item.value || item.valor);
 
       if (!acc[dateKey]) {
         acc[dateKey] = { entrada: 0, saida: 0 };
       }
-
       if (isIncome) {
         acc[dateKey].entrada += value;
       } else {
         acc[dateKey].saida += value;
       }
+      return acc;
+    }, {});
 
-      return acc;
-    }, {}),
-  )
-    .sort((a, b) => {
-      const [dayA, monthA] = a[0].split("/").map(Number);
-      const [dayB, monthB] = b[0].split("/").map(Number);
-      return monthA - monthB || dayA - dayB;
-    })
-    .reduce((acc, [date, dayTotals], index) => {
-      const previousBalance = index > 0 ? acc[index - 1].saldo : 0;
-      acc.push({
-        data: date,
-        entrada: dayTotals.entrada,
-        saida: dayTotals.saida,
-        saldo: previousBalance + dayTotals.entrada - dayTotals.saida,
-      });
-      return acc;
-    }, []);
+    return Object.entries(grouped)
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .reduce((acc, [isoDate, dayTotals], index) => {
+        const previousBalance = index > 0 ? acc[index - 1].saldo : 0;
+
+        // 👇 Monta o label manualmente — sem conversão de timezone
+        const [year, month, day] = isoDate.split("-");
+        const displayLabel = `${day}/${month}/${year.slice(2)}`;
+
+        acc.push({
+          data: displayLabel,
+          entrada: dayTotals.entrada,
+          saida: dayTotals.saida,
+          saldo: previousBalance + dayTotals.entrada - dayTotals.saida,
+        });
+        return acc;
+      }, []);
+  }, [incomes, expenses]);
 
   const handleEditClick = (item, type) => {
     setEditingId(item.id);
@@ -201,7 +207,8 @@ const DashboardView = ({
         }
       }
     } catch (err) {
-      alert("Erro ao salvar (API Offline?)", err);
+      console.error("Erro ao salvar item:", err);
+      alert("Erro ao salvar. Verifique o console.");
     }
   };
 
@@ -210,7 +217,8 @@ const DashboardView = ({
       await fetch(`${API_URL}/${id}`, { method: "DELETE" });
       fetchData();
     } catch (err) {
-      alert("Erro ao deletar (API Offline?)", err);
+      console.error("Erro ao deletar item:", err);
+      alert("Erro ao deletar. Verifique o console.");
     }
   };
 
@@ -284,7 +292,7 @@ const DashboardView = ({
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4 }}
-                name="Entradas"
+                name="entrada"
               />
               <Line
                 type="monotone"
@@ -293,7 +301,7 @@ const DashboardView = ({
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4 }}
-                name="Saídas"
+                name="saida"
               />
               <Area
                 type="monotone"
@@ -305,7 +313,7 @@ const DashboardView = ({
                 fill="url(#colorSaldo)"
                 animationDuration={1000}
                 dot={{ r: 2, strokeWidth: 1, fill: "#3b82f6" }}
-                name="Saldo"
+                name="saldo"
               />
             </AreaChart>
           </ResponsiveContainer>
