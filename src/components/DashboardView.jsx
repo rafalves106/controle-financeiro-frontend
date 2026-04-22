@@ -41,18 +41,44 @@ const DashboardView = ({
   totalInvestmentsBalance,
   fetchData,
   loading,
-  incomes,
-  expenses,
+  selectedMes,
+  selectedAno,
+  onChangeMonth,
+  categorias,
+  incomes = [],
+  expenses = [],
 }) => {
   const [newItemName, setNewItemName] = useState("");
   const [newItemDescription, setNewItemDescription] = useState("");
   const [newItemValue, setNewItemValue] = useState("");
   const [newItemDate, setNewItemDate] = useState("");
   const [inputType, setInputType] = useState("Saida");
+  const [newItemCategoryId, setNewItemCategoryId] = useState("");
   const [isFixed, setIsFixed] = useState(false);
   const [fixedPeriod, setFixedPeriod] = useState("");
 
   const [editingId, setEditingId] = useState(null);
+
+  const isCurrentSelectedMonth =
+    selectedMes === new Date().getMonth() + 1 &&
+    selectedAno === new Date().getFullYear();
+
+  const currentMonthLabel = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(selectedAno, selectedMes - 1, 1));
+
+  const handlePreviousMonth = () => {
+    const previousDate = new Date(selectedAno, selectedMes - 2, 1);
+    onChangeMonth(previousDate.getMonth() + 1, previousDate.getFullYear());
+  };
+
+  const handleNextMonth = () => {
+    if (isCurrentSelectedMonth) return;
+
+    const nextDate = new Date(selectedAno, selectedMes, 1);
+    onChangeMonth(nextDate.getMonth() + 1, nextDate.getFullYear());
+  };
 
   const groupedIncomes = useMemo(
     () =>
@@ -136,6 +162,7 @@ const DashboardView = ({
     setNewItemDescription(item.description || item.descricao);
     setNewItemValue(item.value || item.valor);
     setInputType(type);
+    setNewItemCategoryId(item.categoriaId || "");
 
     if (item.date || item.data) {
       const dateObj = new Date(item.date || item.data);
@@ -154,6 +181,7 @@ const DashboardView = ({
     setNewItemDescription("");
     setNewItemValue("");
     setNewItemDate("");
+    setNewItemCategoryId("");
     setIsFixed(false);
     setFixedPeriod("");
     setInputType("Saida");
@@ -180,6 +208,7 @@ const DashboardView = ({
       data: formatDate(newItemDate),
       fixa: isFixed,
       periodo: isFixed ? parseInt(fixedPeriod) : 0,
+      categoriaId: newItemCategoryId || null,
     };
 
     try {
@@ -237,6 +266,27 @@ const DashboardView = ({
         <h3 className="text-slate-700 font-bold mb-6 flex items-center gap-2">
           <DollarSign size={18} className="text-blue-500" /> Evolução Financeira
         </h3>
+
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <button
+            type="button"
+            onClick={handlePreviousMonth}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            ‹
+          </button>
+          <span className="text-sm font-semibold text-slate-700 capitalize">
+            {currentMonthLabel}
+          </span>
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            disabled={isCurrentSelectedMonth}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ›
+          </button>
+        </div>
 
         <div className="flex-1 w-full">
           <ResponsiveContainer width="100%" height={240}>
@@ -457,6 +507,20 @@ const DashboardView = ({
               <option value="Saida">Saída</option>
               <option value="Entrada">Entrada</option>
             </select>
+
+            <select
+              className="flex-1 p-2 border rounded-lg placeholder-slate-500"
+              value={newItemCategoryId}
+              onChange={(e) => setNewItemCategoryId(e.target.value)}
+            >
+              <option value="">Sem categoria</option>
+              {categorias.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.icone ? `${cat.icone} ` : ""}
+                  {cat.nome}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex gap-2 mt-2">
@@ -513,6 +577,18 @@ const DashboardView = ({
                             <span className="block text-sm font-medium text-slate-700">
                               {i.name || i.titulo}
                             </span>
+                            {i.categoria && (
+                              <span
+                                className="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 mt-1"
+                                style={{
+                                  backgroundColor:
+                                    (i.categoria.cor || "#94a3b8") + "20",
+                                  color: i.categoria.cor || "#94a3b8",
+                                }}
+                              >
+                                {i.categoria.icone} {i.categoria.nome}
+                              </span>
+                            )}
                             <p className="text-xs font-light text-slate-500">
                               {i.description || i.descricao}
                             </p>
@@ -601,6 +677,18 @@ const DashboardView = ({
                             <span className="block text-sm font-medium text-slate-700">
                               {i.name || i.titulo}
                             </span>
+                            {i.categoria && (
+                              <span
+                                className="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 mt-1"
+                                style={{
+                                  backgroundColor:
+                                    (i.categoria.cor || "#94a3b8") + "20",
+                                  color: i.categoria.cor || "#94a3b8",
+                                }}
+                              >
+                                {i.categoria.icone} {i.categoria.nome}
+                              </span>
+                            )}
                             <p className="text-xs font-light text-slate-500">
                               {i.description || i.descricao}
                             </p>

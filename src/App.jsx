@@ -12,7 +12,11 @@ import InvestmentsView from "./components/InvestmentsView";
 import WishlistView from "./components/WishListView";
 import MotoView from "./components/BikeView";
 
-import { API_URL } from "./services/api";
+import {
+  API_URL,
+  API_INVESTIMENTOS_URL,
+  API_CATEGORIAS_URL,
+} from "./services/api";
 
 const mapApiToFrontend = (item) => ({
   id: item.id,
@@ -22,13 +26,18 @@ const mapApiToFrontend = (item) => ({
   date: item.data,
   type: item.tipo,
   investimentoId: item.investimentoId,
+  categoriaId: item.categoriaId,
+  categoria: item.categoria,
 });
 
 const App = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [selectedMes, setSelectedMes] = useState(new Date().getMonth() + 1);
+  const [selectedAno, setSelectedAno] = useState(new Date().getFullYear());
   const [incomes, setIncomes] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  // const [workHoursPerMonth, setWorkHoursPerMonth] = useState(120);
+  const [categorias, setCategorias] = useState([]);
+  const [workHoursPerMonth, setWorkHoursPerMonth] = useState(120);
   const [loading, setLoading] = useState(false);
   const [investments, setInvestments] = useState([]);
 
@@ -42,41 +51,47 @@ const App = () => {
   const totalExpenses = expenses.reduce((acc, curr) => acc + curr.value, 0);
   const finalBalance = totalIncome - totalExpenses;
 
-  const hoje = new Date();
-  const mesAtual = hoje.getMonth();
-  const anoAtual = hoje.getFullYear();
-
   const currentMonthIncome = incomes
-    .filter((item) => {
-      const dataItem = new Date(item.date);
-      const dataLocal = new Date(
-        dataItem.getTime() + dataItem.getTimezoneOffset() * 60000,
-      );
-
-      const isCurrentMonth =
-        dataLocal.getMonth() === mesAtual &&
-        dataLocal.getFullYear() === anoAtual;
-
-      const isStandardIncome = !item.investimentoId;
-
-      return isCurrentMonth && isStandardIncome;
-    })
+    .filter((item) => !item.investimentoId)
     .reduce((acc, curr) => acc + curr.value, 0);
 
   const investmentAmount = currentMonthIncome * (INVESTMENT_GOAL_PERCENT / 100);
 
-  // const hourlyRate =
-  // currentMonthIncome > 0 ? currentMonthIncome / workHoursPerMonth : 0;
+  const hourlyRate =
+    currentMonthIncome > 0 ? currentMonthIncome / workHoursPerMonth : 0;
 
   useEffect(() => {
     fetchData();
+  }, [selectedMes, selectedAno]);
+
+  useEffect(() => {
+    fetchCategorias();
   }, []);
+
+  const handleChangeMonth = (mes, ano) => {
+    setSelectedMes(mes);
+    setSelectedAno(ano);
+  };
+
+  const fetchCategorias = async () => {
+    try {
+      const response = await fetch(API_CATEGORIAS_URL);
+      if (response.ok) {
+        const data = await response.json();
+        setCategorias(data);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar categorias:", err);
+    }
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      const responseMov = await fetch(API_URL);
+      const responseMov = await fetch(
+        `${API_URL}?mes=${selectedMes}&ano=${selectedAno}`,
+      );
       const dataMov = await responseMov.json();
 
       setIncomes(
@@ -86,8 +101,9 @@ const App = () => {
         dataMov.filter((item) => item.tipo === "Saida").map(mapApiToFrontend),
       );
 
-      const INV_API_URL = API_URL.replace("movimentacoes", "investimentos");
-      const responseInv = await fetch(`${INV_API_URL}?mostrarInativos=false`);
+      const responseInv = await fetch(
+        `${API_INVESTIMENTOS_URL}?mostrarInativos=false`,
+      );
 
       if (responseInv.ok) {
         const dataInv = await responseInv.json();
@@ -122,18 +138,18 @@ const App = () => {
               icon: <TrendingUp size={20} />,
               color: "bg-blue-600",
             },
-            // {
-            //   id: "wishlist",
-            //   label: "Metas & Sonhos",
-            //   icon: <Target size={20} />,
-            //   color: "bg-indigo-600",
-            // },
-            // {
-            //   id: "moto",
-            //   label: "Manutenção Moto",
-            //   icon: <Bike size={20} />,
-            //   color: "bg-orange-600",
-            // },
+            {
+              id: "wishlist",
+              label: "Metas & Sonhos",
+              icon: <Target size={20} />,
+              color: "bg-indigo-600",
+            },
+            {
+              id: "moto",
+              label: "Manutenção Moto",
+              icon: <Bike size={20} />,
+              color: "bg-orange-600",
+            },
           ].map((item) => (
             <button
               key={item.id}
@@ -173,6 +189,10 @@ const App = () => {
               fetchData={fetchData}
               loading={loading}
               totalInvestmentsBalance={totalInvestmentsBalance}
+              selectedMes={selectedMes}
+              selectedAno={selectedAno}
+              onChangeMonth={handleChangeMonth}
+              categorias={categorias}
             />
           )}
           {activeTab === "investments" && (
@@ -182,7 +202,7 @@ const App = () => {
               investments={investments}
             />
           )}
-          {/* {activeTab === "wishlist" && (
+          {activeTab === "wishlist" && (
             <WishlistView
               totalIncome={totalIncome}
               hourlyRate={hourlyRate}
@@ -190,7 +210,7 @@ const App = () => {
               setWorkHoursPerMonth={setWorkHoursPerMonth}
             />
           )}
-          {activeTab === "moto" && <MotoView />} */}
+          {activeTab === "moto" && <MotoView />}
         </div>
       </main>
     </div>
