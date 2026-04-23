@@ -14,6 +14,7 @@ const INITIAL_FORM = {
   categoryId: "",
   isFixed: false,
   period: "",
+  tipoRecorrencia: "Mensal",
 };
 
 const TransactionModal = ({
@@ -48,6 +49,11 @@ const TransactionModal = ({
         categoryId: editingItem.categoriaId || "",
         isFixed: Boolean(editingItem.fixa),
         period: editingItem.periodo ? String(editingItem.periodo) : "",
+        tipoRecorrencia:
+          editingItem.tipoRecorrencia === 1 ||
+          editingItem.tipoRecorrencia === "Semanal"
+            ? "Semanal"
+            : "Mensal",
         date: dateStr,
       });
     } else {
@@ -67,6 +73,7 @@ const TransactionModal = ({
       isFixed,
       period,
       categoryId,
+      tipoRecorrencia,
     } = form;
 
     if (!name || !value || !tipo || !date) return;
@@ -80,6 +87,7 @@ const TransactionModal = ({
       data: formatDate(date),
       fixa: isFixed,
       periodo: isFixed ? parseInt(period) : 0,
+      tipoRecorrencia: isFixed ? tipoRecorrencia : "Mensal",
       categoriaId: categoryId || null,
     };
 
@@ -117,6 +125,7 @@ const TransactionModal = ({
     categoryId,
     isFixed,
     period,
+    tipoRecorrencia,
   } = form;
 
   return (
@@ -171,6 +180,34 @@ const TransactionModal = ({
             </label>
           </div>
 
+          {isFixed && editingId === null && (
+            <div className="flex flex-wrap items-center gap-4 px-1">
+              <span className="text-sm font-medium text-slate-600">
+                Tipo de recorrência:
+              </span>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="radio"
+                  name="tipoRecorrencia"
+                  value="Mensal"
+                  checked={tipoRecorrencia === "Mensal"}
+                  onChange={(e) => setField("tipoRecorrencia", e.target.value)}
+                />
+                Mensal
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="radio"
+                  name="tipoRecorrencia"
+                  value="Semanal"
+                  checked={tipoRecorrencia === "Semanal"}
+                  onChange={(e) => setField("tipoRecorrencia", e.target.value)}
+                />
+                Semanal
+              </label>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="date"
@@ -183,7 +220,11 @@ const TransactionModal = ({
               <input
                 type="number"
                 min="1"
-                placeholder="Duração (meses)"
+                placeholder={
+                  tipoRecorrencia === "Semanal"
+                    ? "Duração (semanas)"
+                    : "Duração (meses)"
+                }
                 className="p-2 border rounded-lg"
                 value={period}
                 onChange={(e) => setField("period", e.target.value)}

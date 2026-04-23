@@ -29,6 +29,9 @@ const mapApiToFrontend = (item) => ({
   value: item.valor,
   date: item.data,
   type: item.tipo,
+  fixa: item.fixa,
+  periodo: item.periodo,
+  tipoRecorrencia: item.tipoRecorrencia,
   investimentoId: item.investimentoId,
   categoriaId: item.categoriaId,
   categoria: item.categoria,
@@ -56,7 +59,7 @@ const App = () => {
   );
   const totalIncome = incomes.reduce((acc, curr) => acc + curr.value, 0);
   const totalExpenses = expenses.reduce((acc, curr) => acc + curr.value, 0);
-  const finalBalance = totalIncome - totalExpenses;
+  const finalBalance = saldoAnterior + totalIncome - totalExpenses;
 
   const currentMonthIncome = incomes
     .filter((item) => !item.investimentoId)
@@ -64,8 +67,14 @@ const App = () => {
 
   const investmentAmount = currentMonthIncome * (INVESTMENT_GOAL_PERCENT / 100);
 
-  const hourlyRate =
-    currentMonthIncome > 0 ? currentMonthIncome / workHoursPerMonth : 0;
+  const salaryIncome = incomes
+    .filter(
+      (item) => !item.investimentoId && item.categoria?.nome === "Salário",
+    )
+    .reduce((acc, curr) => acc + curr.value, 0);
+
+  const incomeForRate = salaryIncome > 0 ? salaryIncome : currentMonthIncome;
+  const hourlyRate = incomeForRate > 0 ? incomeForRate / workHoursPerMonth : 0;
 
   const handleChangeMonth = (mes, ano) => {
     setSelectedMes(mes);
