@@ -228,7 +228,6 @@ const App = () => {
         </nav>
 
         <div className="p-6 border-t border-slate-800 hidden md:block space-y-3">
-          <p className="text-xs text-slate-500">Logado como Admin</p>
           <button
             onClick={() => {
               removeToken();
