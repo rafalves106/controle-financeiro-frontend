@@ -7,6 +7,7 @@ import { getAuthHeaders } from "../services/auth";
 import {
   Trash2,
   Pencil,
+  X,
   Wallet,
   DollarSign,
   PiggyBank,
@@ -16,6 +17,7 @@ import {
   Plus,
   PieChart,
   Settings,
+  Sparkles,
 } from "lucide-react";
 
 import {
@@ -55,7 +57,9 @@ const DashboardView = ({
   saldoAnterior = 0,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSimulationModalOpen, setIsSimulationModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [simulatedTransactions, setSimulatedTransactions] = useState([]);
 
   const currentMonthLabel = new Intl.DateTimeFormat("pt-BR", {
     month: "long",
@@ -72,41 +76,110 @@ const DashboardView = ({
     onChangeMonth(nextDate.getMonth() + 1, nextDate.getFullYear());
   };
 
+  const simulatedIncomes = useMemo(
+    () =>
+      simulatedTransactions.filter(
+        (item) => (item.type || item.tipo) === "Entrada",
+      ),
+    [simulatedTransactions],
+  );
+
+  const simulatedExpenses = useMemo(
+    () =>
+      simulatedTransactions.filter(
+        (item) => (item.type || item.tipo) === "Saida",
+      ),
+    [simulatedTransactions],
+  );
+
+  const currentMonthSimulatedIncomes = useMemo(
+    () =>
+      simulatedIncomes.filter((item) => {
+        const date = new Date(item.date || item.data);
+        return (
+          date.getMonth() + 1 === selectedMes &&
+          date.getFullYear() === selectedAno
+        );
+      }),
+    [simulatedIncomes, selectedMes, selectedAno],
+  );
+
+  const currentMonthSimulatedExpenses = useMemo(
+    () =>
+      simulatedExpenses.filter((item) => {
+        const date = new Date(item.date || item.data);
+        return (
+          date.getMonth() + 1 === selectedMes &&
+          date.getFullYear() === selectedAno
+        );
+      }),
+    [simulatedExpenses, selectedMes, selectedAno],
+  );
+
+  const simulatedIncomeTotal = useMemo(
+    () =>
+      currentMonthSimulatedIncomes.reduce(
+        (acc, item) => acc + Number(item.value || item.valor || 0),
+        0,
+      ),
+    [currentMonthSimulatedIncomes],
+  );
+
+  const simulatedExpenseTotal = useMemo(
+    () =>
+      currentMonthSimulatedExpenses.reduce(
+        (acc, item) => acc + Number(item.value || item.valor || 0),
+        0,
+      ),
+    [currentMonthSimulatedExpenses],
+  );
+
   const groupedIncomes = useMemo(
     () =>
-      sortTransactions(incomes).reduce((acc, item) => {
-        const date = new Date(item.date || item.data);
-        const month = date.toLocaleString("pt-BR", {
-          month: "long",
-          year: "numeric",
-        });
-        const day = date.toLocaleDateString("pt-BR");
-
-        if (!acc[month]) acc[month] = {};
-        if (!acc[month][day]) acc[month][day] = [];
-        acc[month][day].push(item);
-        return acc;
-      }, {}),
-    [incomes],
+      sortTransactions([...incomes, ...currentMonthSimulatedIncomes]).reduce(
+        (acc, item) => {
+          const date = new Date(item.date || item.data);
+          const month = date.toLocaleString("pt-BR", {
+            month: "long",
+            year: "numeric",
+          });
+          const day = date.toLocaleDateString("pt-BR");
+          if (!acc[month]) acc[month] = {};
+          if (!acc[month][day]) acc[month][day] = [];
+          acc[month][day].push(item);
+          return acc;
+        },
+        {},
+      ),
+    [incomes, currentMonthSimulatedIncomes],
   );
 
   const groupedExpenses = useMemo(
     () =>
-      sortTransactions(expenses).reduce((acc, item) => {
-        const date = new Date(item.date || item.data);
-        const month = date.toLocaleString("pt-BR", {
-          month: "long",
-          year: "numeric",
-        });
-        const day = date.toLocaleDateString("pt-BR");
-
-        if (!acc[month]) acc[month] = {};
-        if (!acc[month][day]) acc[month][day] = [];
-        acc[month][day].push(item);
-        return acc;
-      }, {}),
-    [expenses],
+      sortTransactions([...expenses, ...currentMonthSimulatedExpenses]).reduce(
+        (acc, item) => {
+          const date = new Date(item.date || item.data);
+          const month = date.toLocaleString("pt-BR", {
+            month: "long",
+            year: "numeric",
+          });
+          const day = date.toLocaleDateString("pt-BR");
+          if (!acc[month]) acc[month] = {};
+          if (!acc[month][day]) acc[month][day] = [];
+          acc[month][day].push(item);
+          return acc;
+        },
+        {},
+      ),
+    [expenses, currentMonthSimulatedExpenses],
   );
+
+  const hasSimulation = simulatedTransactions.length > 0;
+  const displayedIncomeTotal = totalIncome + simulatedIncomeTotal;
+  const displayedExpenseTotal = totalExpenses + simulatedExpenseTotal;
+  const displayedFinalBalance = hasSimulation
+    ? saldoAnterior + displayedIncomeTotal - displayedExpenseTotal
+    : finalBalance;
 
   const expensesByCategory = useMemo(() => {
     const grouped = expenses
@@ -145,11 +218,15 @@ const DashboardView = ({
   );
 
   const chartData = useMemo(() => {
-    const grouped = [...incomes, ...expenses].reduce((acc, item) => {
+    const grouped = [
+      ...incomes,
+      ...expenses,
+      ...currentMonthSimulatedIncomes,
+      ...currentMonthSimulatedExpenses,
+    ].reduce((acc, item) => {
       const rawDate = item.date || item.data;
 
-      // 👇 Pega só a parte da data sem converter timezone
-      const dateKey = rawDate.split("T")[0]; // "2026-04-05" sempre correto
+      const dateKey = rawDate.split("T")[0];
 
       const isIncome = (item.type || item.tipo)?.toLowerCase() === "entrada";
       const value = Number(item.value || item.valor);
@@ -182,11 +259,87 @@ const DashboardView = ({
         });
         return acc;
       }, []);
-  }, [incomes, expenses, saldoAnterior]);
+  }, [
+    incomes,
+    expenses,
+    saldoAnterior,
+    currentMonthSimulatedIncomes,
+    currentMonthSimulatedExpenses,
+  ]);
 
   const handleEditClick = (item, type) => {
     setEditingItem({ ...item, tipo: type });
     setIsModalOpen(true);
+  };
+
+  const handleSimulate = (formData) => {
+    const categoria =
+      categorias.find((item) => item.id === formData.categoryId) || null;
+
+    const count = formData.isFixed ? parseInt(formData.period) || 1 : 1;
+    const novasSimulacoes = [];
+
+    for (let i = 0; i < count; i++) {
+      const baseDate = new Date(`${formData.date}T12:00:00Z`);
+
+      if (formData.isFixed) {
+        if (formData.tipoRecorrencia === "Semanal") {
+          baseDate.setDate(baseDate.getDate() + 7 * i);
+        } else {
+          baseDate.setMonth(baseDate.getMonth() + i);
+        }
+      }
+
+      novasSimulacoes.push({
+        id: crypto.randomUUID(),
+        name: formData.name,
+        description: formData.description,
+        value: Number(formData.value),
+        type: formData.tipo,
+        date: baseDate.toISOString(),
+        categoriaId: formData.categoryId || null,
+        categoria,
+        isSimulated: true,
+      });
+    }
+
+    setSimulatedTransactions((prev) => [...prev, ...novasSimulacoes]);
+    setIsSimulationModalOpen(false);
+  };
+
+  const handleRemoveSimulation = (id) => {
+    setSimulatedTransactions((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleApplySimulation = async () => {
+    try {
+      for (const item of simulatedTransactions) {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            titulo: item.name,
+            descricao: item.description,
+            valor: item.value,
+            tipo: item.type,
+            data: item.date,
+            fixa: false,
+            periodo: 0,
+            categoriaId: item.categoriaId || null,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Erro ao aplicar simulação");
+        }
+      }
+
+      await fetchData();
+      setSimulatedTransactions([]);
+    } catch (err) {
+      console.error("Erro ao aplicar simulação:", err);
+      alert("Erro ao aplicar as transações simuladas. Verifique o console.");
+    }
   };
 
   const handleRemove = async (id) => {
@@ -319,6 +472,31 @@ const DashboardView = ({
           </ResponsiveContainer>
         </div>
       </div>
+
+      {hasSimulation && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm font-medium text-amber-900">
+            ⚠️ Simulação ativa — {simulatedTransactions.length} transação(ões)
+            pendente(s)
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSimulatedTransactions([])}
+              className="px-3 py-2 rounded-lg bg-slate-200 text-slate-700 font-medium hover:bg-slate-300 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleApplySimulation}
+              className="px-3 py-2 rounded-lg bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors"
+            >
+              Aplicar tudo
+            </button>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-6 items-start">
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -327,20 +505,50 @@ const DashboardView = ({
                 {" "}
                 <ArrowUpCircle size={20} /> Entrada{" "}
               </div>
-              <div className="text-2xl font-bold">
-                {" "}
-                {formatCurrency(totalIncome)}{" "}
-              </div>
+              {hasSimulation ? (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-slate-400 line-through">
+                    {formatCurrency(totalIncome)}
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-2xl font-bold text-slate-900">
+                      {formatCurrency(displayedIncomeTotal)}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">
+                      + simulado
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-2xl font-bold">
+                  {formatCurrency(totalIncome)}
+                </div>
+              )}
             </div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
               <div className="flex items-center gap-2 text-rose-600 mb-2 font-medium">
                 {" "}
                 <ArrowDownCircle size={20} /> Saídas{" "}
               </div>
-              <div className="text-2xl font-bold">
-                {" "}
-                {formatCurrency(totalExpenses)}{" "}
-              </div>
+              {hasSimulation ? (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-slate-400 line-through">
+                    {formatCurrency(totalExpenses)}
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-2xl font-bold text-slate-900">
+                      {formatCurrency(displayedExpenseTotal)}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">
+                      + simulado
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-2xl font-bold">
+                  {formatCurrency(totalExpenses)}
+                </div>
+              )}
             </div>
             <div className="bg-blue-50 p-4 rounded-xl shadow-sm border border-blue-100">
               <div className="flex justify-between items-center mb-2">
@@ -356,16 +564,31 @@ const DashboardView = ({
               </div>
             </div>
             <div
-              className={`p-4 rounded-xl shadow-sm border ${finalBalance >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"}`}
+              className={`p-4 rounded-xl shadow-sm border ${displayedFinalBalance >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"}`}
             >
               <div className="flex items-center gap-2 mb-2 font-medium">
                 {" "}
                 <DollarSign size={20} /> Saldo Livre{" "}
               </div>
-              <div className="text-2xl font-bold">
-                {" "}
-                {formatCurrency(finalBalance)}{" "}
-              </div>
+              {hasSimulation ? (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-slate-400 line-through">
+                    {formatCurrency(finalBalance)}
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-2xl font-bold">
+                      {formatCurrency(displayedFinalBalance)}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide rounded-full bg-amber-100 text-amber-700 px-2 py-0.5">
+                      + simulado
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-2xl font-bold">
+                  {formatCurrency(finalBalance)}
+                </div>
+              )}
             </div>
           </div>
 
@@ -463,7 +686,11 @@ const DashboardView = ({
                         {transactions.map((i) => (
                           <div
                             key={i.id}
-                            className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
+                            className={`flex justify-between py-3 px-2 rounded-md transition-colors ${
+                              i.isSimulated
+                                ? "border border-dashed border-amber-300 bg-amber-50"
+                                : "border-b last:border-0 border-slate-50 hover:bg-slate-50"
+                            }`}
                           >
                             <div>
                               <span className="block text-sm font-medium text-slate-700">
@@ -490,8 +717,21 @@ const DashboardView = ({
                                 {formatCurrency(i.value || i.valor)}
                               </span>
 
-                              {/* <-- TRAVA DE EDIÇÃO/EXCLUSÃO AQUI --> */}
-                              {i.investimentoId ? (
+                              {i.isSimulated ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                                    Simulado
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSimulation(i.id)}
+                                    className="p-1 rounded-full hover:bg-amber-100 text-amber-700 transition-colors"
+                                    title="Remover simulação"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ) : i.investimentoId ? (
                                 <div
                                   className="flex items-center gap-1 text-blue-500 bg-blue-50 px-2 py-1 rounded-md cursor-help"
                                   title="Gerenciado na aba de Investimentos"
@@ -574,7 +814,11 @@ const DashboardView = ({
                         {transactions.map((i) => (
                           <div
                             key={i.id}
-                            className="flex justify-between py-3 border-b last:border-0 border-slate-50 hover:bg-slate-50 px-2 rounded-md transition-colors"
+                            className={`flex justify-between py-3 px-2 rounded-md transition-colors ${
+                              i.isSimulated
+                                ? "border border-dashed border-amber-300 bg-amber-50"
+                                : "border-b last:border-0 border-slate-50 hover:bg-slate-50"
+                            }`}
                           >
                             <div>
                               <span className="block text-sm font-medium text-slate-700">
@@ -601,8 +845,21 @@ const DashboardView = ({
                                 {formatCurrency(i.value || i.valor)}
                               </span>
 
-                              {/* <-- TRAVA DE EDIÇÃO/EXCLUSÃO AQUI --> */}
-                              {i.investimentoId ? (
+                              {i.isSimulated ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                                    Simulado
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSimulation(i.id)}
+                                    className="p-1 rounded-full hover:bg-amber-100 text-amber-700 transition-colors"
+                                    title="Remover simulação"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ) : i.investimentoId ? (
                                 <div
                                   className="flex items-center gap-1 text-blue-500 bg-blue-50 px-2 py-1 rounded-md cursor-help"
                                   title="Gerenciado na aba de Investimentos"
@@ -660,12 +917,32 @@ const DashboardView = ({
         <Plus size={24} />
       </button>
 
+      <button
+        type="button"
+        className="fixed bottom-6 right-24 z-40 bg-amber-500 hover:bg-amber-600 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center transition-colors"
+        onClick={() => {
+          setIsSimulationModalOpen(true);
+        }}
+        title="Simular transação"
+      >
+        <Sparkles size={22} />
+      </button>
+
       <TransactionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={fetchData}
         categorias={categorias}
         editingItem={editingItem}
+      />
+
+      <TransactionModal
+        isOpen={isSimulationModalOpen}
+        onClose={() => setIsSimulationModalOpen(false)}
+        onSimulate={handleSimulate}
+        categorias={categorias}
+        editingItem={null}
+        isSimulation={true}
       />
     </div>
   );

@@ -23,6 +23,8 @@ const TransactionModal = ({
   onSuccess,
   categorias,
   editingItem,
+  isSimulation = false,
+  onSimulate,
 }) => {
   const [form, setForm] = useState(INITIAL_FORM);
   const setField = (field, value) =>
@@ -91,6 +93,21 @@ const TransactionModal = ({
       categoriaId: categoryId || null,
     };
 
+    if (isSimulation) {
+      onSimulate?.({
+        name,
+        description,
+        value,
+        date,
+        tipo,
+        categoryId,
+        isFixed,
+        period,
+        tipoRecorrencia,
+      });
+      return;
+    }
+
     try {
       const response = editingId
         ? await fetch(`${API_URL}/${editingId}`, {
@@ -133,7 +150,11 @@ const TransactionModal = ({
       <div className="bg-white rounded-2xl max-w-lg w-full mx-4 p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-slate-800">
-            {editingItem ? "Editar Transação" : "Nova Transação"}
+            {isSimulation
+              ? "Simular Transação"
+              : editingItem
+                ? "Editar Transação"
+                : "Nova Transação"}
           </h2>
           <button
             type="button"
@@ -274,12 +295,14 @@ const TransactionModal = ({
             <button
               type="submit"
               className={`flex-1 text-white rounded-lg font-medium transition-colors p-2 ${
-                editingId
+                isSimulation
                   ? "bg-amber-500 hover:bg-amber-600"
-                  : "bg-emerald-500 hover:bg-emerald-600"
+                  : editingId
+                    ? "bg-amber-500 hover:bg-amber-600"
+                    : "bg-emerald-500 hover:bg-emerald-600"
               }`}
             >
-              {editingId ? "Atualizar" : "Salvar"}
+              {isSimulation ? "Simular" : editingId ? "Atualizar" : "Salvar"}
             </button>
           </div>
         </form>
