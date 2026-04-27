@@ -76,52 +76,6 @@ const DashboardView = ({
     onChangeMonth(nextDate.getMonth() + 1, nextDate.getFullYear());
   };
 
-  const groupedIncomes = useMemo(
-    () =>
-      sortTransactions([
-        ...incomes,
-        ...simulatedTransactions.filter(
-          (item) => (item.type || item.tipo) === "Entrada",
-        ),
-      ]).reduce((acc, item) => {
-        const date = new Date(item.date || item.data);
-        const month = date.toLocaleString("pt-BR", {
-          month: "long",
-          year: "numeric",
-        });
-        const day = date.toLocaleDateString("pt-BR");
-
-        if (!acc[month]) acc[month] = {};
-        if (!acc[month][day]) acc[month][day] = [];
-        acc[month][day].push(item);
-        return acc;
-      }, {}),
-    [incomes, simulatedTransactions],
-  );
-
-  const groupedExpenses = useMemo(
-    () =>
-      sortTransactions([
-        ...expenses,
-        ...simulatedTransactions.filter(
-          (item) => (item.type || item.tipo) === "Saida",
-        ),
-      ]).reduce((acc, item) => {
-        const date = new Date(item.date || item.data);
-        const month = date.toLocaleString("pt-BR", {
-          month: "long",
-          year: "numeric",
-        });
-        const day = date.toLocaleDateString("pt-BR");
-
-        if (!acc[month]) acc[month] = {};
-        if (!acc[month][day]) acc[month][day] = [];
-        acc[month][day].push(item);
-        return acc;
-      }, {}),
-    [expenses, simulatedTransactions],
-  );
-
   const simulatedIncomes = useMemo(
     () =>
       simulatedTransactions.filter(
@@ -138,22 +92,86 @@ const DashboardView = ({
     [simulatedTransactions],
   );
 
+  const currentMonthSimulatedIncomes = useMemo(
+    () =>
+      simulatedIncomes.filter((item) => {
+        const date = new Date(item.date || item.data);
+        return (
+          date.getMonth() + 1 === selectedMes &&
+          date.getFullYear() === selectedAno
+        );
+      }),
+    [simulatedIncomes, selectedMes, selectedAno],
+  );
+
+  const currentMonthSimulatedExpenses = useMemo(
+    () =>
+      simulatedExpenses.filter((item) => {
+        const date = new Date(item.date || item.data);
+        return (
+          date.getMonth() + 1 === selectedMes &&
+          date.getFullYear() === selectedAno
+        );
+      }),
+    [simulatedExpenses, selectedMes, selectedAno],
+  );
+
   const simulatedIncomeTotal = useMemo(
     () =>
-      simulatedIncomes.reduce(
+      currentMonthSimulatedIncomes.reduce(
         (acc, item) => acc + Number(item.value || item.valor || 0),
         0,
       ),
-    [simulatedIncomes],
+    [currentMonthSimulatedIncomes],
   );
 
   const simulatedExpenseTotal = useMemo(
     () =>
-      simulatedExpenses.reduce(
+      currentMonthSimulatedExpenses.reduce(
         (acc, item) => acc + Number(item.value || item.valor || 0),
         0,
       ),
-    [simulatedExpenses],
+    [currentMonthSimulatedExpenses],
+  );
+
+  const groupedIncomes = useMemo(
+    () =>
+      sortTransactions([...incomes, ...currentMonthSimulatedIncomes]).reduce(
+        (acc, item) => {
+          const date = new Date(item.date || item.data);
+          const month = date.toLocaleString("pt-BR", {
+            month: "long",
+            year: "numeric",
+          });
+          const day = date.toLocaleDateString("pt-BR");
+          if (!acc[month]) acc[month] = {};
+          if (!acc[month][day]) acc[month][day] = [];
+          acc[month][day].push(item);
+          return acc;
+        },
+        {},
+      ),
+    [incomes, currentMonthSimulatedIncomes],
+  );
+
+  const groupedExpenses = useMemo(
+    () =>
+      sortTransactions([...expenses, ...currentMonthSimulatedExpenses]).reduce(
+        (acc, item) => {
+          const date = new Date(item.date || item.data);
+          const month = date.toLocaleString("pt-BR", {
+            month: "long",
+            year: "numeric",
+          });
+          const day = date.toLocaleDateString("pt-BR");
+          if (!acc[month]) acc[month] = {};
+          if (!acc[month][day]) acc[month][day] = [];
+          acc[month][day].push(item);
+          return acc;
+        },
+        {},
+      ),
+    [expenses, currentMonthSimulatedExpenses],
   );
 
   const hasSimulation = simulatedTransactions.length > 0;
@@ -200,28 +218,29 @@ const DashboardView = ({
   );
 
   const chartData = useMemo(() => {
-    const grouped = [...incomes, ...expenses, ...simulatedTransactions].reduce(
-      (acc, item) => {
-        const rawDate = item.date || item.data;
+    const grouped = [
+      ...incomes,
+      ...expenses,
+      ...currentMonthSimulatedIncomes,
+      ...currentMonthSimulatedExpenses,
+    ].reduce((acc, item) => {
+      const rawDate = item.date || item.data;
 
-        // 👇 Pega só a parte da data sem converter timezone
-        const dateKey = rawDate.split("T")[0]; // "2026-04-05" sempre correto
+      const dateKey = rawDate.split("T")[0];
 
-        const isIncome = (item.type || item.tipo)?.toLowerCase() === "entrada";
-        const value = Number(item.value || item.valor);
+      const isIncome = (item.type || item.tipo)?.toLowerCase() === "entrada";
+      const value = Number(item.value || item.valor);
 
-        if (!acc[dateKey]) {
-          acc[dateKey] = { entrada: 0, saida: 0 };
-        }
-        if (isIncome) {
-          acc[dateKey].entrada += value;
-        } else {
-          acc[dateKey].saida += value;
-        }
-        return acc;
-      },
-      {},
-    );
+      if (!acc[dateKey]) {
+        acc[dateKey] = { entrada: 0, saida: 0 };
+      }
+      if (isIncome) {
+        acc[dateKey].entrada += value;
+      } else {
+        acc[dateKey].saida += value;
+      }
+      return acc;
+    }, {});
 
     return Object.entries(grouped)
       .sort((a, b) => new Date(a[0]) - new Date(b[0]))
@@ -240,7 +259,13 @@ const DashboardView = ({
         });
         return acc;
       }, []);
-  }, [incomes, expenses, saldoAnterior, simulatedTransactions]);
+  }, [
+    incomes,
+    expenses,
+    saldoAnterior,
+    currentMonthSimulatedIncomes,
+    currentMonthSimulatedExpenses,
+  ]);
 
   const handleEditClick = (item, type) => {
     setEditingItem({ ...item, tipo: type });
@@ -250,25 +275,35 @@ const DashboardView = ({
   const handleSimulate = (formData) => {
     const categoria =
       categorias.find((item) => item.id === formData.categoryId) || null;
-    const dateValue = new Date(`${formData.date}T12:00:00Z`).toISOString();
 
-    setSimulatedTransactions((prev) => [
-      ...prev,
-      {
+    const count = formData.isFixed ? parseInt(formData.period) || 1 : 1;
+    const novasSimulacoes = [];
+
+    for (let i = 0; i < count; i++) {
+      const baseDate = new Date(`${formData.date}T12:00:00Z`);
+
+      if (formData.isFixed) {
+        if (formData.tipoRecorrencia === "Semanal") {
+          baseDate.setDate(baseDate.getDate() + 7 * i);
+        } else {
+          baseDate.setMonth(baseDate.getMonth() + i);
+        }
+      }
+
+      novasSimulacoes.push({
         id: crypto.randomUUID(),
         name: formData.name,
         description: formData.description,
         value: Number(formData.value),
         type: formData.tipo,
-        date: dateValue,
+        date: baseDate.toISOString(),
         categoriaId: formData.categoryId || null,
         categoria,
         isSimulated: true,
-        isFixed: formData.isFixed,
-        period: formData.period,
-        tipoRecorrencia: formData.tipoRecorrencia,
-      },
-    ]);
+      });
+    }
+
+    setSimulatedTransactions((prev) => [...prev, ...novasSimulacoes]);
     setIsSimulationModalOpen(false);
   };
 
