@@ -12,6 +12,8 @@ const INITIAL_FORM = {
   date: "",
   tipo: "Saida",
   categoryId: "",
+  veiculoId: "",
+  km: "",
   isFixed: false,
   period: "",
   tipoRecorrencia: "Mensal",
@@ -22,6 +24,7 @@ const TransactionModal = ({
   onClose,
   onSuccess,
   categorias,
+  veiculos = [],
   editingItem,
   isSimulation = false,
   onSimulate,
@@ -34,12 +37,8 @@ const TransactionModal = ({
     if (!isOpen) return;
 
     if (editingItem) {
-      const dateStr =
-        editingItem.date || editingItem.data
-          ? new Date(editingItem.date || editingItem.data)
-              .toISOString()
-              .split("T")[0]
-          : "";
+      const rawDate = editingItem.date || editingItem.data;
+      const dateStr = rawDate ? rawDate.split("T")[0] : "";
 
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm({
@@ -49,6 +48,8 @@ const TransactionModal = ({
         value: String(editingItem.value || editingItem.valor || ""),
         tipo: editingItem.tipo || editingItem.type || "Saida",
         categoryId: editingItem.categoriaId || "",
+        veiculoId: editingItem.veiculoId || "",
+        km: editingItem.km != null ? String(editingItem.km) : "",
         isFixed: Boolean(editingItem.fixa),
         period: editingItem.periodo ? String(editingItem.periodo) : "",
         tipoRecorrencia:
@@ -75,6 +76,8 @@ const TransactionModal = ({
       isFixed,
       period,
       categoryId,
+      veiculoId,
+      km,
       tipoRecorrencia,
     } = form;
 
@@ -91,6 +94,8 @@ const TransactionModal = ({
       periodo: isFixed ? parseInt(period) : 0,
       tipoRecorrencia: isFixed ? tipoRecorrencia : "Mensal",
       categoriaId: categoryId || null,
+      veiculoId: veiculoId || null,
+      km: km ? parseInt(km) : null,
     };
 
     if (isSimulation) {
@@ -101,6 +106,8 @@ const TransactionModal = ({
         date,
         tipo,
         categoryId,
+        veiculoId,
+        km,
         isFixed,
         period,
         tipoRecorrencia,
@@ -140,10 +147,18 @@ const TransactionModal = ({
     date,
     tipo,
     categoryId,
+    veiculoId,
+    km,
     isFixed,
     period,
     tipoRecorrencia,
   } = form;
+
+  const categoriaTransporte = categorias.find(
+    (c) => c.nome?.toLowerCase() === "transporte",
+  );
+  const isTransporte =
+    categoryId === categoriaTransporte?.id && tipo === "Saida";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
@@ -272,7 +287,11 @@ const TransactionModal = ({
             <select
               className="p-2 border rounded-lg md:col-span-2"
               value={categoryId}
-              onChange={(e) => setField("categoryId", e.target.value)}
+              onChange={(e) => {
+                setField("categoryId", e.target.value);
+                setField("veiculoId", "");
+                setField("km", "");
+              }}
             >
               <option value="">Sem categoria</option>
               {categorias.map((cat) => (
@@ -282,6 +301,34 @@ const TransactionModal = ({
                 </option>
               ))}
             </select>
+
+            {isTransporte && (
+              <select
+                className="p-2 border rounded-lg md:col-span-2"
+                value={veiculoId}
+                onChange={(e) => {
+                  setField("veiculoId", e.target.value);
+                  setField("km", "");
+                }}
+              >
+                <option value="">Selecione o veículo</option>
+                {veiculos.map((veiculo) => (
+                  <option key={veiculo.id} value={veiculo.id}>
+                    {veiculo.nome} — {veiculo.modelo} ({veiculo.ano})
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {isTransporte && veiculoId && (
+              <input
+                type="number"
+                placeholder="Quilometragem (km)"
+                className="p-2 border rounded-lg md:col-span-2"
+                value={km}
+                onChange={(e) => setField("km", e.target.value)}
+              />
+            )}
           </div>
 
           <div className="flex gap-2 pt-2">

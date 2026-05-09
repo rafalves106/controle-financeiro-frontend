@@ -19,6 +19,7 @@ import {
   API_URL,
   API_INVESTIMENTOS_URL,
   API_CATEGORIAS_URL,
+  API_VEICULOS_URL,
 } from "./services/api";
 import { getAuthHeaders, isAuthenticated, removeToken } from "./services/auth";
 
@@ -34,6 +35,8 @@ const mapApiToFrontend = (item) => ({
   tipoRecorrencia: item.tipoRecorrencia,
   investimentoId: item.investimentoId,
   categoriaId: item.categoriaId,
+  veiculoId: item.veiculoId,
+  km: item.km,
   categoria: item.categoria,
 });
 
@@ -56,6 +59,7 @@ const App = () => {
   const [workHoursPerMonth, setWorkHoursPerMonth] = useState(120);
   const [loading, setLoading] = useState(false);
   const [investments, setInvestments] = useState([]);
+  const [veiculos, setVeiculos] = useState([]);
   const [saldoAnterior, setSaldoAnterior] = useState(0);
   const [salaryIncomeForGoals, setSalaryIncomeForGoals] = useState(0);
 
@@ -103,6 +107,27 @@ const App = () => {
       }
     } catch (err) {
       console.error("Erro ao buscar categorias:", err);
+    }
+  };
+
+  const fetchVeiculos = async () => {
+    try {
+      const response = await fetch(API_VEICULOS_URL, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) {
+        removeToken();
+        setIsLoggedIn(false);
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        setVeiculos(data);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar veículos:", err);
     }
   };
 
@@ -211,6 +236,10 @@ const App = () => {
     }
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    if (isLoggedIn) fetchVeiculos();
+  }, [isLoggedIn]);
+
   if (!isLoggedIn) {
     return <LoginView onLoginSuccess={() => setIsLoggedIn(true)} />;
   }
@@ -300,6 +329,7 @@ const App = () => {
               selectedAno={selectedAno}
               onChangeMonth={handleChangeMonth}
               categorias={categorias}
+              veiculos={veiculos}
               onOpenCategoryManager={() => setIsCategoryManagerOpen(true)}
               saldoAnterior={saldoAnterior}
             />
@@ -319,7 +349,13 @@ const App = () => {
               setWorkHoursPerMonth={setWorkHoursPerMonth}
             />
           )}
-          {activeTab === "moto" && <MotoView />}
+          {activeTab === "moto" && (
+            <MotoView
+              veiculos={veiculos}
+              fetchVeiculos={fetchVeiculos}
+              categorias={categorias}
+            />
+          )}
 
           <CategoryManagerModal
             isOpen={isCategoryManagerOpen}

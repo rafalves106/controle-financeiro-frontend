@@ -51,6 +51,7 @@ const DashboardView = ({
   selectedAno,
   onChangeMonth,
   categorias,
+  veiculos,
   onOpenCategoryManager,
   incomes = [],
   expenses = [],
@@ -298,6 +299,8 @@ const DashboardView = ({
         type: formData.tipo,
         date: baseDate.toISOString(),
         categoriaId: formData.categoryId || null,
+        veiculoId: formData.veiculoId || null,
+        km: formData.km ? parseInt(formData.km) : null,
         categoria,
         isSimulated: true,
       });
@@ -326,6 +329,8 @@ const DashboardView = ({
             fixa: false,
             periodo: 0,
             categoriaId: item.categoriaId || null,
+            veiculoId: item.veiculoId || null,
+            km: item.km || null,
           }),
         });
 
@@ -933,6 +938,7 @@ const DashboardView = ({
         onClose={() => setIsModalOpen(false)}
         onSuccess={fetchData}
         categorias={categorias}
+        veiculos={veiculos}
         editingItem={editingItem}
       />
 
@@ -941,6 +947,7 @@ const DashboardView = ({
         onClose={() => setIsSimulationModalOpen(false)}
         onSimulate={handleSimulate}
         categorias={categorias}
+        veiculos={veiculos}
         editingItem={null}
         isSimulation={true}
       />
