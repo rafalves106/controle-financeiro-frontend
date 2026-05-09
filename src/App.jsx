@@ -11,7 +11,7 @@ import {
 import DashboardView from "./components/DashboardView";
 import InvestmentsView from "./components/InvestmentsView";
 import WishlistView from "./components/WishListView";
-import MotoView from "./components/BikeView";
+import VehicleView from "./components/VehicleView";
 import CategoryManagerModal from "./components/CategoryManagerModal";
 import LoginView from "./components/LoginView";
 
@@ -273,8 +273,8 @@ const App = () => {
               color: "bg-indigo-600",
             },
             {
-              id: "moto",
-              label: "Manutenção Moto",
+              id: "vehicle",
+              label: "Manutenção Veicular",
               icon: <Bike size={20} />,
               color: "bg-orange-600",
             },
@@ -310,7 +310,7 @@ const App = () => {
             {activeTab === "dashboard" && "Visão Geral"}
             {activeTab === "investments" && "Planejador de Futuro"}
             {activeTab === "wishlist" && "Custo de Oportunidade"}
-            {activeTab === "moto" && "Gestão da Motocicleta"}
+            {activeTab === "vehicle" && "Gestão de Veículos"}
           </h1>
         </header>
 
@@ -349,8 +349,8 @@ const App = () => {
               setWorkHoursPerMonth={setWorkHoursPerMonth}
             />
           )}
-          {activeTab === "moto" && (
-            <MotoView
+          {activeTab === "vehicle" && (
+            <VehicleView
               veiculos={veiculos}
               fetchVeiculos={fetchVeiculos}
               categorias={categorias}

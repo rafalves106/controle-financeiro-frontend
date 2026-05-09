@@ -28,7 +28,7 @@ const formInicial = {
   alertaKm: "",
 };
 
-const BikeView = ({ veiculos = [], fetchVeiculos, categorias = [] }) => {
+const VehicleView = ({ veiculos = [], fetchVeiculos, categorias = [] }) => {
   const [veiculoSelecionadoId, setVeiculoSelecionadoId] = useState(null);
   const [todasMovimentacoes, setTodasMovimentacoes] = useState([]);
   const [formVeiculo, setFormVeiculo] = useState(formInicial);
@@ -675,4 +675,4 @@ const BikeView = ({ veiculos = [], fetchVeiculos, categorias = [] }) => {
   );
 };
 
-export default BikeView;
+export default VehicleView;
