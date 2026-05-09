@@ -57,6 +57,7 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [investments, setInvestments] = useState([]);
   const [saldoAnterior, setSaldoAnterior] = useState(0);
+  const [salaryIncomeForGoals, setSalaryIncomeForGoals] = useState(0);
 
   const INVESTMENT_GOAL_PERCENT = 10;
 
@@ -74,17 +75,8 @@ const App = () => {
 
   const investmentAmount = currentMonthIncome * (INVESTMENT_GOAL_PERCENT / 100);
 
-  const salaryIncome = incomes
-    .filter((item) => {
-      if (item.investimentoId) return false;
-
-      const categoriaNome = normalizeText(item.categoria?.nome);
-      return categoriaNome === "salario";
-    })
-    .reduce((acc, curr) => acc + curr.value, 0);
-
   const monthlyIncomeForGoals =
-    salaryIncome > 0 ? salaryIncome : currentMonthIncome;
+    salaryIncomeForGoals > 0 ? salaryIncomeForGoals : currentMonthIncome;
   const hourlyRate =
     monthlyIncomeForGoals > 0 ? monthlyIncomeForGoals / workHoursPerMonth : 0;
 
@@ -152,6 +144,37 @@ const App = () => {
       if (resSaldo.ok) {
         const { saldo } = await resSaldo.json();
         setSaldoAnterior(saldo);
+      }
+
+      const resResumo = await fetch(
+        `${API_URL}/resumo?mes=${selectedMes}&ano=${selectedAno}`,
+        { headers: getAuthHeaders() },
+      );
+
+      if (resResumo.status === 401) {
+        removeToken();
+        setIsLoggedIn(false);
+        return;
+      }
+
+      if (resResumo.ok) {
+        const resumo = await resResumo.json();
+        const rendaSalario = resumo?.rendaSalario ?? 0;
+
+        if (rendaSalario > 0) {
+          setSalaryIncomeForGoals(rendaSalario);
+        } else {
+          const fallbackSalaryIncome = dataMov
+            .filter((item) => {
+              if (item.tipo !== "Entrada" || item.investimentoId) return false;
+
+              const categoriaNome = normalizeText(item.categoria?.nome);
+              return categoriaNome === "salario";
+            })
+            .reduce((acc, curr) => acc + curr.valor, 0);
+
+          setSalaryIncomeForGoals(fallbackSalaryIncome);
+        }
       }
 
       const responseInv = await fetch(
