@@ -40,13 +40,6 @@ const mapApiToFrontend = (item) => ({
   categoria: item.categoria,
 });
 
-const normalizeText = (value) =>
-  (value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated());
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -193,8 +186,9 @@ const App = () => {
             .filter((item) => {
               if (item.tipo !== "Entrada" || item.investimentoId) return false;
 
-              const categoriaNome = normalizeText(item.categoria?.nome);
-              return categoriaNome === "salario";
+              const categoriaNome = item.categoria?.nome;
+
+              return categoriaNome === "💰 Salário";
             })
             .reduce((acc, curr) => acc + curr.valor, 0);
 
