@@ -37,6 +37,13 @@ const mapApiToFrontend = (item) => ({
   categoria: item.categoria,
 });
 
+const normalizeText = (value) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated());
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -68,13 +75,18 @@ const App = () => {
   const investmentAmount = currentMonthIncome * (INVESTMENT_GOAL_PERCENT / 100);
 
   const salaryIncome = incomes
-    .filter(
-      (item) => !item.investimentoId && item.categoria?.nome === "Salário",
-    )
+    .filter((item) => {
+      if (item.investimentoId) return false;
+
+      const categoriaNome = normalizeText(item.categoria?.nome);
+      return categoriaNome === "salario";
+    })
     .reduce((acc, curr) => acc + curr.value, 0);
 
-  const incomeForRate = salaryIncome > 0 ? salaryIncome : currentMonthIncome;
-  const hourlyRate = incomeForRate > 0 ? incomeForRate / workHoursPerMonth : 0;
+  const monthlyIncomeForGoals =
+    salaryIncome > 0 ? salaryIncome : currentMonthIncome;
+  const hourlyRate =
+    monthlyIncomeForGoals > 0 ? monthlyIncomeForGoals / workHoursPerMonth : 0;
 
   const handleChangeMonth = (mes, ano) => {
     setSelectedMes(mes);
@@ -278,7 +290,7 @@ const App = () => {
           )}
           {activeTab === "wishlist" && (
             <WishlistView
-              totalIncome={totalIncome}
+              totalIncome={monthlyIncomeForGoals}
               hourlyRate={hourlyRate}
               workHoursPerMonth={workHoursPerMonth}
               setWorkHoursPerMonth={setWorkHoursPerMonth}
